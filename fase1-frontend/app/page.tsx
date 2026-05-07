@@ -30,7 +30,7 @@ const PRIORIDAD_CONFIG = {
   baja:  { label: "Baja",  color: "#059669", bg: "#F0FDF4", dot: "#059669" },
 };
 
-const RUTINAS_HOY: Rutina[] = [
+const RUTINAS_HOY: Rutina[] = [ //harcodeado
   { id: 1, titulo: "Clase de Cálculo", horaInicio: "09:00", horaFin: "11:00", categoria: "Universidad", color: "#6366F1" },
   { id: 2, titulo: "Almuerzo", horaInicio: "13:00", horaFin: "14:00", categoria: "Personal", color: "#059669" },
   { id: 3, titulo: "Práctica de Programación", horaInicio: "16:00", horaFin: "18:00", categoria: "Universidad", color: "#6366F1" },
