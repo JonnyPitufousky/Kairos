@@ -1,15 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
+import BotonNuevaTarea from "./components/BotonNuevaTarea";
 
 interface Tarea {
-  id: number;
+  id: string;
   titulo: string;
   descripcion: string | null;
   completado: boolean;
   fecha_vencimiento: string | null;
   prioridad: "baja" | "media" | "alta";
-  creado_en: string;
+  creadoEn: string;
 }
 
 interface Rutina {
@@ -35,9 +36,6 @@ const RUTINAS_HOY: Rutina[] = [
   { id: 3, titulo: "Práctica de Programación", horaInicio: "16:00", horaFin: "18:00", categoria: "Universidad", color: "#6366F1" },
 ];
 
-// Extrae hora de inicio y fin de fecha_vencimiento
-// Formato guardado: "2026-05-03T17:00:00|18:00" (fecha inicio | hora fin)
-// Si no tiene periodo: "2026-05-03T00:00:00"
 function parseTarea(tarea: Tarea): { fechaBase: Date; horaInicio: string | null; horaFin: string | null } {
   if (!tarea.fecha_vencimiento) return { fechaBase: new Date(), horaInicio: null, horaFin: null };
   const [fechaParte, finParte] = tarea.fecha_vencimiento.split("|");
@@ -86,7 +84,6 @@ function isOverdue(tarea: Tarea): boolean {
   return fechaBase < new Date(hoy.toDateString());
 }
 
-// Detecta si el periodo de la tarea ya terminó HOY
 function isPeriodoPasadoHoy(tarea: Tarea): boolean {
   if (!tarea.fecha_vencimiento || tarea.completado) return false;
   const { fechaBase, horaFin } = parseTarea(tarea);
@@ -114,6 +111,7 @@ function getRutinaActual(rutinas: Rutina[]): Rutina | null {
 
 export default function Home() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const [tareas, setTareas] = useState<Tarea[]>([]);
   const [cargando, setCargando] = useState(true);
   const [mostrarModal, setMostrarModal] = useState(false);
@@ -122,7 +120,7 @@ export default function Home() {
   const [horaActual, setHoraActual] = useState(getHoraActual());
   const [toastTarea, setToastTarea] = useState<Tarea | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
-  const [toastSnoozed, setToastSnoozed] = useState<number[]>([]);
+  const [toastSnoozed, setToastSnoozed] = useState<string[]>([]);
 
   const [formTitulo, setFormTitulo] = useState("");
   const [formDescripcion, setFormDescripcion] = useState("");
@@ -143,7 +141,6 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // Detectar tareas con periodo pasado hoy
   useEffect(() => {
     if (tareas.length === 0 || toastVisible) return;
     const candidatas = tareas.filter(t =>
@@ -154,13 +151,24 @@ export default function Home() {
       setToastVisible(true);
     }
   }, [tareas, horaActual]);
-    
+
+  async function apiFetch(url: string, options: RequestInit = {}) {
+    const token = await getToken();
+    return fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  }
+
   async function cargarTareas() {
     setCargando(true);
-    const res = await fetch(`${BACKEND}/api/tareas`);
+    const res = await apiFetch(`${BACKEND}/api/tareas`);
     const data = await res.json();
-    console.log("TAREAS DEL BACKEND:", JSON.stringify(data, null, 2));
-    setTareas(data);
+    setTareas(Array.isArray(data) ? data : []);
     setCargando(false);
   }
 
@@ -175,9 +183,8 @@ export default function Home() {
     e.preventDefault();
     if (!formTitulo.trim() || !formFecha) return;
     const fecha_vencimiento = buildFechaVencimiento(formFecha, formHoraInicio, formHoraFin);
-    await fetch(`${BACKEND}/api/tareas`, {
+    await apiFetch(`${BACKEND}/api/tareas`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ titulo: formTitulo, descripcion: formDescripcion || null, prioridad: formPrioridad, fecha_vencimiento }),
     });
     resetForm();
@@ -189,9 +196,8 @@ export default function Home() {
     e.preventDefault();
     if (!editarTarea || !formTitulo.trim() || !formFecha) return;
     const fecha_vencimiento = buildFechaVencimiento(formFecha, formHoraInicio, formHoraFin);
-    await fetch(`${BACKEND}/api/tareas/${editarTarea.id}`, {
+    await apiFetch(`${BACKEND}/api/tareas/${editarTarea.id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ titulo: formTitulo, descripcion: formDescripcion || null, prioridad: formPrioridad, fecha_vencimiento }),
     });
     setEditarTarea(null);
@@ -199,16 +205,16 @@ export default function Home() {
     cargarTareas();
   }
 
-  async function completarTarea(id: number, completado: boolean) {
-    await fetch(`${BACKEND}/api/tareas/${id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
+  async function completarTarea(id: string, completado: boolean) {
+    await apiFetch(`${BACKEND}/api/tareas/${id}`, {
+      method: "PUT",
       body: JSON.stringify({ completado: !completado }),
     });
     cargarTareas();
   }
 
-  async function eliminarTarea(id: number) {
-    await fetch(`${BACKEND}/api/tareas/${id}`, { method: "DELETE" });
+  async function eliminarTarea(id: string) {
+    await apiFetch(`${BACKEND}/api/tareas/${id}`, { method: "DELETE" });
     setConfirmarEliminar(null);
     cargarTareas();
   }
@@ -250,9 +256,18 @@ export default function Home() {
     cerrarToast();
   }
 
-  const pendientes = tareas.filter(t => !t.completado);
-  const completadas = tareas.filter(t => t.completado);
-  const progreso = tareas.length > 0 ? Math.round((completadas.length / tareas.length) * 100) : 0;
+  const esHoy = (tarea: Tarea) => {
+    if (!tarea.fecha_vencimiento) return false;
+    const fecha = new Date(tarea.fecha_vencimiento.split("|")[0].split("T")[0]);
+    const hoy = new Date();
+    return fecha.toDateString() === hoy.toDateString();
+  };
+
+  const pendientes = tareas.filter(t => !t.completado && esHoy(t));
+  const completadas = tareas.filter(t => t.completado && esHoy(t));
+
+  const totalHoy = pendientes.length + completadas.length;
+  const progreso = totalHoy > 0 ? Math.round((completadas.length / totalHoy) * 100) : 0;
 
   const heroTarea = pendientes.find(t => t.prioridad === "alta" && isOverdue(t))
     || pendientes.find(t => t.prioridad === "alta" && t.fecha_vencimiento && formatDeadline(t) === "Hoy")
@@ -271,13 +286,14 @@ export default function Home() {
           <p style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{fecha}</p>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <h1 style={{ fontSize: 28, fontWeight: 700, color: "#1A1A1A", margin: "0 0 4px", letterSpacing: "-0.5px" }}>
-              {saludo}{user?.firstName ? `, ${user.firstName}` : user?.username ? `, ${user.username}` : ""}            </h1>
+              {saludo}{user?.firstName ? `, ${user.firstName}` : user?.username ? `, ${user.username}` : ""}
+            </h1>
             <span style={{ fontSize: 13, color: "#9CA3AF", marginTop: 4 }}>{horaActual}</span>
           </div>
           {tareas.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                <span style={{ fontSize: 12, color: "#9CA3AF" }}>{completadas.length}/{tareas.length} completadas</span>
+                <span style={{ fontSize: 12, color: "#9CA3AF" }}>{completadas.length}/{totalHoy} completadas</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: progreso === 100 ? "#059669" : "#6B7280" }}>{progreso}%</span>
               </div>
               <div style={{ height: 4, background: "#E5E7EB", borderRadius: 99 }}>
@@ -396,7 +412,6 @@ export default function Home() {
           opacity: toastVisible ? 1 : 0,
           transition: "all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}>
-          {/* Header */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#6366F1", flexShrink: 0 }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: "#6366F1", textTransform: "uppercase", letterSpacing: "0.06em", flex: 1 }}>Tarea pasada</span>
@@ -405,16 +420,12 @@ export default function Home() {
               onMouseLeave={e => (e.currentTarget.style.color = "#D1D5DB")}
             >✕</button>
           </div>
-
-          {/* Tarea */}
           <p style={{ fontSize: 14, fontWeight: 600, color: "#1A1A1A", margin: "0 0 3px", lineHeight: 1.3 }}>
             {toastTarea.titulo}
           </p>
           <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0 0 14px" }}>
             {formatDeadline(toastTarea)} · el periodo ya terminó
           </p>
-
-          {/* Acciones */}
           <div style={{ display: "flex", gap: 8 }}>
             <button
               onClick={confirmarToast}
@@ -475,7 +486,12 @@ export default function Home() {
           </div>
         </div>
       )}
+      <BotonNuevaTarea
+        fechaInicial={new Date().toISOString().split("T")[0]}
+        onTareaCreada={cargarTareas}
+      />
     </div>
+    
   );
 }
 
@@ -496,8 +512,6 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
       <div onClick={e => e.stopPropagation()} style={{ background: "#FFFFFF", borderRadius: 14, padding: "28px 24px", width: "100%", maxWidth: 440, margin: "0 16px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
         <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1A1A1A", margin: "0 0 20px" }}>{titulo}</h3>
         <form onSubmit={onSubmit}>
-
-          {/* Título */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Título *</label>
             <input value={formTitulo} onChange={e => setFormTitulo(e.target.value)} placeholder="¿Qué necesitas hacer?" autoFocus required
@@ -506,8 +520,6 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
               onBlur={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
             />
           </div>
-
-          {/* Descripción */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Descripción</label>
             <textarea value={formDescripcion} onChange={e => setFormDescripcion(e.target.value)} placeholder="Notas adicionales..." rows={2}
@@ -516,8 +528,6 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
               onBlur={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
             />
           </div>
-
-          {/* Fecha */}
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Fecha límite *</label>
             <input type="date" value={formFecha} onChange={e => setFormFecha(e.target.value)} required
@@ -526,8 +536,6 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
               onBlur={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
             />
           </div>
-
-          {/* Periodo horario */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Periodo horario
@@ -550,8 +558,6 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
               <p style={{ fontSize: 11, color: "#D97706", marginTop: 5 }}>Añade hora de fin para activar la detección automática</p>
             )}
           </div>
-
-          {/* Prioridad */}
           <div style={{ marginBottom: 24 }}>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Prioridad</label>
             <div style={{ display: "flex", gap: 6 }}>
@@ -563,7 +569,6 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
               ))}
             </div>
           </div>
-
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <button type="button" onClick={onCerrar} style={{ background: "#F3F4F6", color: "#6B7280", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
             <button type="submit" style={{ background: "#6366F1", color: "#FFFFFF", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>{boton}</button>
@@ -577,7 +582,7 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
 // ── HERO TAREA ────────────────────────────────────────────────
 function HeroTarea({ tarea, onCompletar, onEliminar, onEditar }: {
   tarea: Tarea;
-  onCompletar: (id: number, completado: boolean) => void;
+  onCompletar: (id: string, completado: boolean) => void;
   onEliminar: (tarea: Tarea) => void;
   onEditar: (tarea: Tarea) => void;
 }) {
@@ -602,7 +607,8 @@ function HeroTarea({ tarea, onCompletar, onEliminar, onEditar }: {
         borderRadius: "0 16px 16px 0", padding: "18px 18px 18px 16px",
         cursor: "pointer", userSelect: "none",
         border: `0.5px solid ${animando ? "#BBF7D0" : hover ? "#D1D5DB" : "#E5E7EB"}`,
-        borderLeft: `4px solid ${animando ? "#059669" : hover ? p.dot : "#E5E7EB"}`,        boxShadow: hover && !animando ? "0 8px 24px rgba(0,0,0,0.08)" : "0 2px 8px rgba(0,0,0,0.04)",
+        borderLeft: `4px solid ${animando ? "#059669" : hover ? p.dot : "#E5E7EB"}`,
+        boxShadow: hover && !animando ? "0 8px 24px rgba(0,0,0,0.08)" : "0 2px 8px rgba(0,0,0,0.04)",
         transition: "all 0.4s ease",
         opacity: animando ? 0.4 : 1,
         transform: animando ? "scale(0.98)" : "scale(1)",
@@ -630,7 +636,8 @@ function HeroTarea({ tarea, onCompletar, onEliminar, onEditar }: {
             <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 8px", lineHeight: 1.4 }}>{tarea.descripcion}</p>
           )}
           <p style={{ fontSize: 12, color: vencida ? "#EF4444" : "#9CA3AF", margin: 0, fontWeight: vencida ? 600 : 400, opacity: animando ? 0 : 1, transition: "opacity 0.4s ease" }}>
-            {[p.label, tarea.fecha_vencimiento ? formatDeadline(tarea) : "Sin fecha"].join(" · ")}          </p>
+            {tarea.fecha_vencimiento ? `${p.label} · ${formatDeadline(tarea)}` : p.label}
+          </p>
         </div>
         <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
           <button onClick={e => { e.stopPropagation(); onEditar(tarea); }}
@@ -652,7 +659,7 @@ function HeroTarea({ tarea, onCompletar, onEliminar, onEditar }: {
 // ── TAREA NORMAL ──────────────────────────────────────────────
 function TareaItem({ tarea, onCompletar, onEliminar, onEditar }: {
   tarea: Tarea;
-  onCompletar: (id: number, completado: boolean) => void;
+  onCompletar: (id: string, completado: boolean) => void;
   onEliminar: (tarea: Tarea) => void;
   onEditar: (tarea: Tarea) => void;
 }) {
@@ -676,7 +683,8 @@ function TareaItem({ tarea, onCompletar, onEliminar, onEditar }: {
         display: "flex", alignItems: "center", gap: 12,
         background: animando ? "#F0FDF4" : "#FFFFFF",
         border: `0.5px solid ${animando ? "#BBF7D0" : hover ? "#D1D5DB" : "#E5E7EB"}`,
-        borderLeft: `3px solid ${animando ? "#059669" : tarea.completado ? "#E5E7EB" : hover ? p.dot : "#E5E7EB"}`,        borderRadius: "0 12px 12px 0", padding: "11px 14px",
+        borderLeft: `3px solid ${animando ? "#059669" : tarea.completado ? "#E5E7EB" : hover ? p.dot : "#E5E7EB"}`,
+        borderRadius: "0 12px 12px 0", padding: "11px 14px",
         cursor: "pointer", userSelect: "none",
         transition: "all 0.4s ease",
         opacity: animando ? 0.3 : tarea.completado ? 0.5 : 1,
@@ -702,7 +710,8 @@ function TareaItem({ tarea, onCompletar, onEliminar, onEditar }: {
           {tarea.titulo}
         </span>
         <p style={{ fontSize: 12, color: vencida ? "#EF4444" : "#9CA3AF", margin: "3px 0 0", fontWeight: vencida ? 600 : 400, opacity: animando ? 0 : 1, transition: "opacity 0.4s ease" }}>
-          {[p.label, tarea.fecha_vencimiento ? formatDeadline(tarea) : "Sin fecha"].join(" · ")}        </p>
+          {tarea.fecha_vencimiento ? `${p.label} · ${formatDeadline(tarea)}` : p.label}
+        </p>
       </div>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
         <button onClick={e => { e.stopPropagation(); onEditar(tarea); }}
@@ -723,7 +732,7 @@ function TareaItem({ tarea, onCompletar, onEliminar, onEditar }: {
 // ── COMPLETADAS ───────────────────────────────────────────────
 function CompletadasSection({ tareas, onCompletar, onEliminar, onEditar }: {
   tareas: Tarea[];
-  onCompletar: (id: number, completado: boolean) => void;
+  onCompletar: (id: string, completado: boolean) => void;
   onEliminar: (tarea: Tarea) => void;
   onEditar: (tarea: Tarea) => void;
 }) {

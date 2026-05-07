@@ -1,14 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
+import BotonNuevaTarea from "../components/BotonNuevaTarea";
 
 interface Tarea {
-  id: number;
+  id: string;
   titulo: string;
   descripcion: string | null;
   completado: boolean;
   fecha_vencimiento: string | null;
   prioridad: "baja" | "media" | "alta";
-  creado_en: string;
+  creadoEn: string;
 }
 
 const BACKEND = "http://localhost:3000";
@@ -135,18 +137,30 @@ function agruparPorSemana(tareas: Tarea[]): { semanas: GrupoSemana[]; sinFecha: 
 export default function AgendaPage() {
   const [tareas, setTareas] = useState<Tarea[]>([]);
   const [cargando, setCargando] = useState(true);
+  const { getToken } = useAuth();
 
+  async function apiFetch(url: string, options: RequestInit = {}) {
+    const token = await getToken();
+    return fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  }
   useEffect(() => { cargarTareas(); }, []);
 
   async function cargarTareas() {
     setCargando(true);
-    const res = await fetch(`${BACKEND}/api/tareas`);
+    const res = await apiFetch(`${BACKEND}/api/tareas`);
     const data = await res.json();
-    setTareas(data);
+    setTareas(Array.isArray(data) ? data : []);
     setCargando(false);
   }
 
-  async function completarTarea(id: number, completado: boolean) {
+  async function completarTarea(id: string, completado: boolean) {
     await fetch(`${BACKEND}/api/tareas/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -202,6 +216,7 @@ export default function AgendaPage() {
           </>
         )}
       </div>
+            <BotonNuevaTarea onTareaCreada={cargarTareas} />
     </div>
   );
 }
@@ -209,7 +224,7 @@ export default function AgendaPage() {
 // ── GRUPO SEMANA ──────────────────────────────────────────────
 function SemanaGroup({ semana, onCompletar }: {
   semana: GrupoSemana;
-  onCompletar: (id: number, completado: boolean) => void;
+  onCompletar: (id: string, completado: boolean) => void;
 }) {
   const [abierto, setAbierto] = useState(true);
   const completadas = semana.tareas.filter(t => t.completado).length;
@@ -272,7 +287,7 @@ function SemanaGroup({ semana, onCompletar }: {
 // ── TAREA ITEM AGENDA ─────────────────────────────────────────
 function AgendaTareaItem({ tarea, onCompletar }: {
   tarea: Tarea;
-  onCompletar: (id: number, completado: boolean) => void;
+  onCompletar: (id: string, completado: boolean) => void;
 }) {
   const [hover, setHover] = useState(false);
   const [animando, setAnimando] = useState(false);
