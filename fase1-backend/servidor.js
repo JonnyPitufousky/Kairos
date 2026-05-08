@@ -1,9 +1,12 @@
 require('dotenv').config()
+const cors = require('cors');
+
 const express = require('express')
 const prisma = require('./db')
 const { clerkMiddleware, requireAuth } = require('./middleware/auth')
 
 const app = express()
+app.use(cors({ origin: 'http://localhost:3007' }));
 app.use(express.json())
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'ChangeME API running' })
@@ -13,13 +16,15 @@ app.use(clerkMiddleware()) // ← add this, processes Clerk tokens on every requ
 
 // TAREAS
 app.get('/api/tareas', requireAuth, async (req, res) => {
+  console.log('userId:', req.userId);
   try {
     const tareas = await prisma.tarea.findMany({
-      where: { userId: req.userId },  // ← only this user's tasks
+      where: { userId: req.userId },
       orderBy: { creadoEn: 'desc' }
     })
     res.json(tareas)
   } catch (error) {
+    console.log('ERROR:', error.message);
     res.status(500).json({ error: 'Error al obtener tareas' })
   }
 })
@@ -166,6 +171,7 @@ app.post('/api/objetivos', requireAuth, async (req, res) => {
   try {
     const { nombre, tipo, deadline, meta, unidad, periodo } = req.body
     if (!nombre || !tipo) return res.status(400).json({ error: 'Faltan campos requeridos' })
+    if (!['simple', 'avanzado'].includes(tipo)) return res.status(400).json({ error: 'Tipo de objetivo inválido' })
     const objetivo = await prisma.objetivo.create({
       data: {
         nombre, tipo,

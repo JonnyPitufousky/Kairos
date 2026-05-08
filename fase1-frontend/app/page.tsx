@@ -30,10 +30,10 @@ const PRIORIDAD_CONFIG = {
   baja:  { label: "Baja",  color: "#059669", bg: "#F0FDF4", dot: "#059669" },
 };
 
-const RUTINAS_HOY: Rutina[] = [ //harcodeado
-  { id: 1, titulo: "Clase de Cálculo", horaInicio: "09:00", horaFin: "11:00", categoria: "Universidad", color: "#6366F1" },
-  { id: 2, titulo: "Almuerzo", horaInicio: "13:00", horaFin: "14:00", categoria: "Personal", color: "#059669" },
-  { id: 3, titulo: "Práctica de Programación", horaInicio: "16:00", horaFin: "18:00", categoria: "Universidad", color: "#6366F1" },
+const RUTINAS_HOY: Rutina[] = [
+  { id: 1, titulo: "Clase de Cálculo",           horaInicio: "09:00", horaFin: "11:00", categoria: "Universidad", color: "#6366F1" },
+  { id: 2, titulo: "Almuerzo",                   horaInicio: "13:00", horaFin: "14:00", categoria: "Personal",    color: "#059669" },
+  { id: 3, titulo: "Práctica de Programación",   horaInicio: "16:00", horaFin: "18:00", categoria: "Universidad", color: "#6366F1" },
 ];
 
 function parseTarea(tarea: Tarea): { fechaBase: Date; horaInicio: string | null; horaFin: string | null } {
@@ -44,8 +44,7 @@ function parseTarea(tarea: Tarea): { fechaBase: Date; horaInicio: string | null;
   const horaInicio = tieneHora
     ? `${String(fechaBase.getHours()).padStart(2, "0")}:${String(fechaBase.getMinutes()).padStart(2, "0")}`
     : null;
-  const horaFin = finParte || null;
-  return { fechaBase, horaInicio, horaFin };
+  return { fechaBase, horaInicio, horaFin: finParte || null };
 }
 
 function formatDeadline(tarea: Tarea): string {
@@ -56,10 +55,10 @@ function formatDeadline(tarea: Tarea): string {
   const diff = Math.ceil((targetDia.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
 
   let diaStr = "";
-  if (diff < 0) diaStr = `Venció hace ${Math.abs(diff)}d`;
+  if (diff < 0)      diaStr = `Venció hace ${Math.abs(diff)}d`;
   else if (diff === 0) diaStr = "Hoy";
   else if (diff === 1) diaStr = "Mañana";
-  else if (diff <= 7) diaStr = `En ${diff} días`;
+  else if (diff <= 7)  diaStr = `En ${diff} días`;
   else diaStr = fechaBase.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
 
   if (horaInicio && horaFin) return `${diaStr} · ${horaInicio}–${horaFin}`;
@@ -71,14 +70,11 @@ function isOverdue(tarea: Tarea): boolean {
   if (!tarea.fecha_vencimiento) return false;
   const { fechaBase, horaFin } = parseTarea(tarea);
   const hoy = new Date();
-
   if (horaFin) {
     const [hh, mm] = horaFin.split(":").map(Number);
-    const finDate = new Date(fechaBase);
-    finDate.setHours(hh, mm, 0, 0);
+    const finDate = new Date(fechaBase); finDate.setHours(hh, mm, 0, 0);
     return finDate < hoy;
   }
-
   const tieneHora = fechaBase.getHours() !== 0 || fechaBase.getMinutes() !== 0;
   if (tieneHora) return fechaBase < hoy;
   return fechaBase < new Date(hoy.toDateString());
@@ -90,11 +86,9 @@ function isPeriodoPasadoHoy(tarea: Tarea): boolean {
   const ahora = new Date();
   const esHoy = fechaBase.toDateString() === ahora.toDateString();
   if (!esHoy) return false;
-
   if (horaFin) {
     const [hh, mm] = horaFin.split(":").map(Number);
-    const finDate = new Date(fechaBase);
-    finDate.setHours(hh, mm, 0, 0);
+    const finDate = new Date(fechaBase); finDate.setHours(hh, mm, 0, 0);
     return finDate < ahora;
   }
   return false;
@@ -112,27 +106,27 @@ function getRutinaActual(rutinas: Rutina[]): Rutina | null {
 export default function Home() {
   const { user } = useUser();
   const { getToken } = useAuth();
-  const [tareas, setTareas] = useState<Tarea[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [mostrarModal, setMostrarModal] = useState(false);
+  const [tareas, setTareas]                       = useState<Tarea[]>([]);
+  const [cargando, setCargando]                   = useState(true);
   const [confirmarEliminar, setConfirmarEliminar] = useState<Tarea | null>(null);
-  const [editarTarea, setEditarTarea] = useState<Tarea | null>(null);
-  const [horaActual, setHoraActual] = useState(getHoraActual());
-  const [toastTarea, setToastTarea] = useState<Tarea | null>(null);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [toastSnoozed, setToastSnoozed] = useState<string[]>([]);
+  const [editarTarea, setEditarTarea]             = useState<Tarea | null>(null);
+  const [horaActual, setHoraActual]               = useState(getHoraActual());
+  const [toastTarea, setToastTarea]               = useState<Tarea | null>(null);
+  const [toastVisible, setToastVisible]           = useState(false);
+  const [toastSnoozed, setToastSnoozed]           = useState<string[]>([]);
+  const [felicitacionVisible, setFelicitacionVisible] = useState(false);
 
-  const [formTitulo, setFormTitulo] = useState("");
+  const [formTitulo, setFormTitulo]         = useState("");
   const [formDescripcion, setFormDescripcion] = useState("");
-  const [formPrioridad, setFormPrioridad] = useState<"baja" | "media" | "alta">("media");
-  const [formFecha, setFormFecha] = useState("");
+  const [formPrioridad, setFormPrioridad]   = useState<"baja" | "media" | "alta">("media");
+  const [formFecha, setFormFecha]           = useState("");
   const [formHoraInicio, setFormHoraInicio] = useState("");
-  const [formHoraFin, setFormHoraFin] = useState("");
+  const [formHoraFin, setFormHoraFin]       = useState("");
 
-  const hoy = new Date();
-  const hora = hoy.getHours();
+  const hoy    = new Date();
+  const hora   = hoy.getHours();
   const saludo = hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
-  const fecha = hoy.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+  const fecha  = hoy.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
 
   useEffect(() => { cargarTareas(); }, []);
 
@@ -143,14 +137,26 @@ export default function Home() {
 
   useEffect(() => {
     if (tareas.length === 0 || toastVisible) return;
-    const candidatas = tareas.filter(t =>
-      isPeriodoPasadoHoy(t) && !toastSnoozed.includes(t.id)
-    );
-    if (candidatas.length > 0) {
-      setToastTarea(candidatas[0]);
-      setToastVisible(true);
-    }
+    const candidatas = tareas.filter(t => isPeriodoPasadoHoy(t) && !toastSnoozed.includes(t.id));
+    if (candidatas.length > 0) { setToastTarea(candidatas[0]); setToastVisible(true); }
   }, [tareas, horaActual]);
+
+  useEffect(() => {
+    const hoyStr = new Date().toLocaleDateString("en-CA");
+    const sonDeHoyOAntes = (t: Tarea) => {
+      if (!t.fecha_vencimiento) return false;
+      const f = t.fecha_vencimiento.split("|")[0].split("T")[0];
+      return f <= hoyStr;
+    };
+    const total      = tareas.filter(sonDeHoyOAntes).length;
+    const pendientes = tareas.filter(t => sonDeHoyOAntes(t) && !t.completado).length;
+    if (!cargando && total > 0 && pendientes === 0) {
+      const t = setTimeout(() => setFelicitacionVisible(true), 500);
+      return () => clearTimeout(t);
+    } else {
+      setFelicitacionVisible(false);
+    }
+  }, [tareas, cargando]);
 
   async function apiFetch(url: string, options: RequestInit = {}) {
     const token = await getToken();
@@ -177,19 +183,6 @@ export default function Home() {
     if (horaInicio && horaFin) return `${fecha}T${horaInicio}:00|${horaFin}`;
     if (horaInicio) return `${fecha}T${horaInicio}:00`;
     return `${fecha}T00:00:00`;
-  }
-
-  async function crearTarea(e: React.FormEvent) {
-    e.preventDefault();
-    if (!formTitulo.trim() || !formFecha) return;
-    const fecha_vencimiento = buildFechaVencimiento(formFecha, formHoraInicio, formHoraFin);
-    await apiFetch(`${BACKEND}/api/tareas`, {
-      method: "POST",
-      body: JSON.stringify({ titulo: formTitulo, descripcion: formDescripcion || null, prioridad: formPrioridad, fecha_vencimiento }),
-    });
-    resetForm();
-    setMostrarModal(false);
-    cargarTareas();
   }
 
   async function actualizarTarea(e: React.FormEvent) {
@@ -230,7 +223,7 @@ export default function Home() {
     setFormDescripcion(tarea.descripcion || "");
     setFormPrioridad(tarea.prioridad);
     if (tarea.fecha_vencimiento) {
-      const { fechaBase, horaInicio, horaFin } = parseTarea(tarea);
+      const { horaInicio, horaFin } = parseTarea(tarea);
       setFormFecha(tarea.fecha_vencimiento.split("T")[0]);
       setFormHoraInicio(horaInicio || "");
       setFormHoraFin(horaFin || "");
@@ -245,37 +238,40 @@ export default function Home() {
   }
 
   function snoozeToast() {
-    if (toastTarea) setToastSnoozed(prev => [...prev, toastTarea.id]);
+    if (toastTarea) setToastSnoozed(prev => [...prev, toastTarea!.id]);
     cerrarToast();
   }
 
   async function confirmarToast() {
-    if (toastTarea) {
-      await completarTarea(toastTarea.id, false);
-    }
+    if (toastTarea) await completarTarea(toastTarea.id, false);
     cerrarToast();
   }
 
   const esHoy = (tarea: Tarea) => {
     if (!tarea.fecha_vencimiento) return false;
     const fecha = new Date(tarea.fecha_vencimiento.split("|")[0].split("T")[0]);
-    const hoy = new Date();
-    return fecha.toDateString() === hoy.toDateString();
+    return fecha.toDateString() === new Date().toDateString();
   };
 
-  const pendientes = tareas.filter(t => !t.completado && esHoy(t));
+  const esAnterior = (tarea: Tarea) => {
+    if (!tarea.fecha_vencimiento) return false;
+    const fechaStr = tarea.fecha_vencimiento.split("|")[0].split("T")[0];
+    return fechaStr < new Date().toLocaleDateString("en-CA");
+  };
+
+  const pendientes  = tareas.filter(t => !t.completado && (esHoy(t) || esAnterior(t)));
   const completadas = tareas.filter(t => t.completado && esHoy(t));
+  const totalHoy    = pendientes.length + completadas.length;
+  const progreso    = totalHoy > 0 ? Math.round((completadas.length / totalHoy) * 100) : 0;
 
-  const totalHoy = pendientes.length + completadas.length;
-  const progreso = totalHoy > 0 ? Math.round((completadas.length / totalHoy) * 100) : 0;
-
-  const heroTarea = pendientes.find(t => t.prioridad === "alta" && isOverdue(t))
-    || pendientes.find(t => t.prioridad === "alta" && t.fecha_vencimiento && formatDeadline(t) === "Hoy")
-    || pendientes.find(t => t.prioridad === "alta")
-    || pendientes[0];
+  const heroTarea =
+    pendientes.find(t => t.prioridad === "alta" && isOverdue(t)) ||
+    pendientes.find(t => t.prioridad === "alta" && t.fecha_vencimiento && formatDeadline(t) === "Hoy") ||
+    pendientes.find(t => t.prioridad === "alta") ||
+    pendientes[0];
 
   const restasPendientes = pendientes.filter(t => t.id !== heroTarea?.id);
-  const rutinaActual = getRutinaActual(RUTINAS_HOY);
+  const rutinaActual     = getRutinaActual(RUTINAS_HOY);
 
   return (
     <div style={{ background: "#FAFAF9", minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -308,20 +304,6 @@ export default function Home() {
 
           {/* Columna izquierda */}
           <div>
-            <button
-              onClick={() => { setEditarTarea(null); resetForm(); setMostrarModal(true); }}
-              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: "#FFFFFF", border: "1.5px dashed #D1D5DB", borderRadius: 14, padding: "12px 16px", cursor: "pointer", marginBottom: 20, transition: "border-color 0.15s" }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = "#6366F1")}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = "#D1D5DB")}
-            >
-              <span style={{ width: 26, height: 26, borderRadius: "50%", background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </span>
-              <span style={{ fontSize: 14, color: "#9CA3AF", fontWeight: 500 }}>Añadir tarea...</span>
-            </button>
-
             {cargando ? (
               <p style={{ textAlign: "center", color: "#9CA3AF", padding: "40px 0", fontSize: 14 }}>Cargando...</p>
             ) : pendientes.length === 0 && completadas.length === 0 ? (
@@ -335,7 +317,7 @@ export default function Home() {
                 {heroTarea && (
                   <div style={{ marginBottom: 20 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-                      {heroTarea.prioridad === "alta" ? "🔴 Prioridad alta" : "Próxima tarea"}
+                      {heroTarea.prioridad === "alta" ? "Prioridad alta" : "Próxima tarea"}
                     </p>
                     <HeroTarea tarea={heroTarea} onCompletar={completarTarea} onEliminar={setConfirmarEliminar} onEditar={abrirEditar} />
                   </div>
@@ -348,6 +330,32 @@ export default function Home() {
                         <TareaItem key={t.id} tarea={t} onCompletar={completarTarea} onEliminar={setConfirmarEliminar} onEditar={abrirEditar} />
                       ))}
                     </ul>
+                  </div>
+                )}
+                {pendientes.length === 0 && tareas.some(t => {
+                  const f = t.fecha_vencimiento?.split("|")[0].split("T")[0];
+                  return !!f && f <= new Date().toLocaleDateString("en-CA");
+                }) && (
+                  <div style={{
+                    background: "#F5F3FF",
+                    border: "1px solid #DDD6FE",
+                    borderRadius: 14,
+                    padding: "14px 18px",
+                    marginBottom: 20,
+                    display: "flex", alignItems: "center", gap: 12,
+                    opacity: felicitacionVisible ? 1 : 0,
+                    transform: felicitacionVisible ? "translateY(0)" : "translateY(12px)",
+                    transition: "opacity 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)",
+                  }}>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#EDE9FE", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: "#4C1D95", margin: "0 0 1px" }}>¡Enhorabuena!</p>
+                      <p style={{ fontSize: 12, color: "#6D28D9", margin: 0 }}>Has completado todas las tareas del día.</p>
+                    </div>
                   </div>
                 )}
                 {completadas.length > 0 && (
@@ -420,41 +428,21 @@ export default function Home() {
               onMouseLeave={e => (e.currentTarget.style.color = "#D1D5DB")}
             >✕</button>
           </div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#1A1A1A", margin: "0 0 3px", lineHeight: 1.3 }}>
-            {toastTarea.titulo}
-          </p>
-          <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0 0 14px" }}>
-            {formatDeadline(toastTarea)} · el periodo ya terminó
-          </p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#1A1A1A", margin: "0 0 3px", lineHeight: 1.3 }}>{toastTarea.titulo}</p>
+          <p style={{ fontSize: 12, color: "#9CA3AF", margin: "0 0 14px" }}>{formatDeadline(toastTarea)} · el periodo ya terminó</p>
           <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={confirmarToast}
-              style={{ flex: 1, background: "#059669", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "background 0.15s" }}
+            <button onClick={confirmarToast}
+              style={{ flex: 1, background: "#059669", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.background = "#047857")}
               onMouseLeave={e => (e.currentTarget.style.background = "#059669")}
-            >✓ Completada</button>
-            <button
-              onClick={snoozeToast}
-              style={{ flex: 1, background: "#F3F4F6", color: "#6B7280", border: "none", borderRadius: 8, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "background 0.15s" }}
+            >Completada</button>
+            <button onClick={snoozeToast}
+              style={{ flex: 1, background: "#F3F4F6", color: "#6B7280", border: "none", borderRadius: 8, padding: "9px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.background = "#E5E7EB")}
               onMouseLeave={e => (e.currentTarget.style.background = "#F3F4F6")}
             >Aún no</button>
           </div>
         </div>
-      )}
-
-      {/* Modal crear */}
-      {mostrarModal && (
-        <ModalTarea
-          titulo="Nueva tarea" boton="Crear tarea"
-          formTitulo={formTitulo} setFormTitulo={setFormTitulo}
-          formDescripcion={formDescripcion} setFormDescripcion={setFormDescripcion}
-          formPrioridad={formPrioridad} setFormPrioridad={setFormPrioridad}
-          formFecha={formFecha} setFormFecha={setFormFecha}
-          formHoraInicio={formHoraInicio} setFormHoraInicio={setFormHoraInicio}
-          formHoraFin={formHoraFin} setFormHoraFin={setFormHoraFin}
-          onSubmit={crearTarea} onCerrar={() => setMostrarModal(false)}
-        />
       )}
 
       {/* Modal editar */}
@@ -467,7 +455,7 @@ export default function Home() {
           formFecha={formFecha} setFormFecha={setFormFecha}
           formHoraInicio={formHoraInicio} setFormHoraInicio={setFormHoraInicio}
           formHoraFin={formHoraFin} setFormHoraFin={setFormHoraFin}
-          onSubmit={actualizarTarea} onCerrar={() => setEditarTarea(null)}
+          onSubmit={actualizarTarea} onCerrar={() => { setEditarTarea(null); resetForm(); }}
         />
       )}
 
@@ -486,12 +474,12 @@ export default function Home() {
           </div>
         </div>
       )}
+
       <BotonNuevaTarea
-        fechaInicial={new Date().toISOString().split("T")[0]}
+        fechaInicial={new Date().toLocaleDateString("en-CA")}
         onTareaCreada={cargarTareas}
       />
     </div>
-    
   );
 }
 
@@ -517,7 +505,7 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
             <input value={formTitulo} onChange={e => setFormTitulo(e.target.value)} placeholder="¿Qué necesitas hacer?" autoFocus required
               style={{ width: "100%", border: "1.5px solid #E5E7EB", borderRadius: 10, padding: "12px 14px", fontSize: 15, color: "#1A1A1A", outline: "none", boxSizing: "border-box" }}
               onFocus={e => (e.currentTarget.style.borderColor = "#6366F1")}
-              onBlur={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
+              onBlur={e  => (e.currentTarget.style.borderColor = "#E5E7EB")}
             />
           </div>
           <div style={{ marginBottom: 16 }}>
@@ -525,7 +513,7 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
             <textarea value={formDescripcion} onChange={e => setFormDescripcion(e.target.value)} placeholder="Notas adicionales..." rows={2}
               style={{ width: "100%", border: "1.5px solid #E5E7EB", borderRadius: 10, padding: "12px 14px", fontSize: 14, color: "#1A1A1A", outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
               onFocus={e => (e.currentTarget.style.borderColor = "#6366F1")}
-              onBlur={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
+              onBlur={e  => (e.currentTarget.style.borderColor = "#E5E7EB")}
             />
           </div>
           <div style={{ marginBottom: 14 }}>
@@ -533,7 +521,7 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
             <input type="date" value={formFecha} onChange={e => setFormFecha(e.target.value)} required
               style={{ width: "100%", border: "1.5px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 13, color: "#1A1A1A", outline: "none", boxSizing: "border-box" }}
               onFocus={e => (e.currentTarget.style.borderColor = "#6366F1")}
-              onBlur={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
+              onBlur={e  => (e.currentTarget.style.borderColor = "#E5E7EB")}
             />
           </div>
           <div style={{ marginBottom: 16 }}>
@@ -543,15 +531,15 @@ function ModalTarea({ titulo, boton, formTitulo, setFormTitulo, formDescripcion,
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <input type="time" value={formHoraInicio} onChange={e => setFormHoraInicio(e.target.value)}
-                style={{ flex: 1, border: "1.5px solid #E5E7EB", borderRadius: 8, padding: "9px 10px", fontSize: 13, color: formHoraInicio ? "#1A1A1A" : "#9CA3AF", outline: "none", boxSizing: "border-box" }}
+                style={{ flex: 1, border: "1.5px solid #E5E7EB", borderRadius: 8, padding: "9px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}
                 onFocus={e => (e.currentTarget.style.borderColor = "#6366F1")}
-                onBlur={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
+                onBlur={e  => (e.currentTarget.style.borderColor = "#E5E7EB")}
               />
               <span style={{ fontSize: 13, color: "#9CA3AF", flexShrink: 0 }}>→</span>
               <input type="time" value={formHoraFin} onChange={e => setFormHoraFin(e.target.value)}
-                style={{ flex: 1, border: "1.5px solid #E5E7EB", borderRadius: 8, padding: "9px 10px", fontSize: 13, color: formHoraFin ? "#1A1A1A" : "#9CA3AF", outline: "none", boxSizing: "border-box" }}
+                style={{ flex: 1, border: "1.5px solid #E5E7EB", borderRadius: 8, padding: "9px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}
                 onFocus={e => (e.currentTarget.style.borderColor = "#6366F1")}
-                onBlur={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
+                onBlur={e  => (e.currentTarget.style.borderColor = "#E5E7EB")}
               />
             </div>
             {formHoraInicio && !formHoraFin && (
@@ -587,9 +575,9 @@ function HeroTarea({ tarea, onCompletar, onEliminar, onEditar }: {
   onEditar: (tarea: Tarea) => void;
 }) {
   const [animando, setAnimando] = useState(false);
-  const [hover, setHover] = useState(false);
+  const [hover, setHover]       = useState(false);
   const vencida = isOverdue(tarea);
-  const p = PRIORIDAD_CONFIG[tarea.prioridad];
+  const p       = PRIORIDAD_CONFIG[tarea.prioridad];
 
   function handleCompletar() {
     if (animando) return;
@@ -598,19 +586,17 @@ function HeroTarea({ tarea, onCompletar, onEliminar, onEditar }: {
   }
 
   return (
-    <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onClick={handleCompletar}
+    <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onClick={handleCompletar}
       style={{
         background: animando ? "#F0FDF4" : "#FFFFFF",
         borderRadius: "0 16px 16px 0", padding: "18px 18px 18px 16px",
         cursor: "pointer", userSelect: "none",
-        border: `0.5px solid ${animando ? "#BBF7D0" : hover ? "#D1D5DB" : "#E5E7EB"}`,
+        borderTop: `0.5px solid ${animando ? "#BBF7D0" : hover ? "#D1D5DB" : "#E5E7EB"}`,
+        borderRight: `0.5px solid ${animando ? "#BBF7D0" : hover ? "#D1D5DB" : "#E5E7EB"}`,
+        borderBottom: `0.5px solid ${animando ? "#BBF7D0" : hover ? "#D1D5DB" : "#E5E7EB"}`,
         borderLeft: `4px solid ${animando ? "#059669" : hover ? p.dot : "#E5E7EB"}`,
         boxShadow: hover && !animando ? "0 8px 24px rgba(0,0,0,0.08)" : "0 2px 8px rgba(0,0,0,0.04)",
-        transition: "all 0.4s ease",
-        opacity: animando ? 0.4 : 1,
+        transition: "all 0.4s ease", opacity: animando ? 0.4 : 1,
         transform: animando ? "scale(0.98)" : "scale(1)",
       }}
     >
@@ -619,22 +605,15 @@ function HeroTarea({ tarea, onCompletar, onEliminar, onEditar }: {
           width: 24, height: 24, borderRadius: "50%", flexShrink: 0, marginTop: 2,
           border: `2px solid ${animando ? "#059669" : "#D1D5DB"}`,
           background: animando ? "#059669" : "transparent",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "all 0.3s ease",
+          display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease",
         }}>
-          {animando && (
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          )}
+          {animando && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 20, fontWeight: 700, color: animando ? "#9CA3AF" : "#1A1A1A", margin: "0 0 4px", letterSpacing: "-0.3px", lineHeight: 1.3, textDecoration: animando ? "line-through" : "none", transition: "all 0.4s ease" }}>
             {tarea.titulo}
           </p>
-          {tarea.descripcion && (
-            <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 8px", lineHeight: 1.4 }}>{tarea.descripcion}</p>
-          )}
+          {tarea.descripcion && <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 8px", lineHeight: 1.4 }}>{tarea.descripcion}</p>}
           <p style={{ fontSize: 12, color: vencida ? "#EF4444" : "#9CA3AF", margin: 0, fontWeight: vencida ? 600 : 400, opacity: animando ? 0 : 1, transition: "opacity 0.4s ease" }}>
             {tarea.fecha_vencimiento ? `${p.label} · ${formatDeadline(tarea)}` : p.label}
           </p>
@@ -644,7 +623,7 @@ function HeroTarea({ tarea, onCompletar, onEliminar, onEditar }: {
             style={{ background: "none", border: `0.5px solid ${hover ? "#D1D5DB" : "#E5E7EB"}`, cursor: "pointer", color: hover ? "#6B7280" : "#D1D5DB", fontSize: 13, padding: "5px 9px", borderRadius: 6, transition: "all 0.15s" }}
             onMouseEnter={e => { e.currentTarget.style.color = "#6366F1"; e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.background = "#EEF2FF"; }}
             onMouseLeave={e => { e.currentTarget.style.color = hover ? "#6B7280" : "#D1D5DB"; e.currentTarget.style.borderColor = hover ? "#D1D5DB" : "#E5E7EB"; e.currentTarget.style.background = "none"; }}
-          >✎ Editar</button>
+          >Editar</button>
           <button onClick={e => { e.stopPropagation(); onEliminar(tarea); }}
             style={{ background: "none", border: `0.5px solid ${hover ? "#D1D5DB" : "#E5E7EB"}`, cursor: "pointer", color: hover ? "#6B7280" : "#D1D5DB", fontSize: 13, padding: "5px 9px", borderRadius: 6, transition: "all 0.15s" }}
             onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; e.currentTarget.style.borderColor = "#FECACA"; e.currentTarget.style.background = "#FEF2F2"; }}
@@ -663,9 +642,9 @@ function TareaItem({ tarea, onCompletar, onEliminar, onEditar }: {
   onEliminar: (tarea: Tarea) => void;
   onEditar: (tarea: Tarea) => void;
 }) {
-  const [hover, setHover] = useState(false);
+  const [hover, setHover]       = useState(false);
   const [animando, setAnimando] = useState(false);
-  const p = PRIORIDAD_CONFIG[tarea.prioridad];
+  const p       = PRIORIDAD_CONFIG[tarea.prioridad];
   const vencida = isOverdue(tarea) && !tarea.completado;
 
   function handleCompletar() {
@@ -675,18 +654,16 @@ function TareaItem({ tarea, onCompletar, onEliminar, onEditar }: {
   }
 
   return (
-    <li
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onClick={handleCompletar}
+    <li onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onClick={handleCompletar}
       style={{
         display: "flex", alignItems: "center", gap: 12,
         background: animando ? "#F0FDF4" : "#FFFFFF",
-        border: `0.5px solid ${animando ? "#BBF7D0" : hover ? "#D1D5DB" : "#E5E7EB"}`,
+        borderTop: `0.5px solid ${animando ? "#BBF7D0" : hover ? "#D1D5DB" : "#E5E7EB"}`,
+        borderRight: `0.5px solid ${animando ? "#BBF7D0" : hover ? "#D1D5DB" : "#E5E7EB"}`,
+        borderBottom: `0.5px solid ${animando ? "#BBF7D0" : hover ? "#D1D5DB" : "#E5E7EB"}`,
         borderLeft: `3px solid ${animando ? "#059669" : tarea.completado ? "#E5E7EB" : hover ? p.dot : "#E5E7EB"}`,
         borderRadius: "0 12px 12px 0", padding: "11px 14px",
-        cursor: "pointer", userSelect: "none",
-        transition: "all 0.4s ease",
+        cursor: "pointer", userSelect: "none", transition: "all 0.4s ease",
         opacity: animando ? 0.3 : tarea.completado ? 0.5 : 1,
         transform: animando ? "scale(0.97)" : "scale(1)",
         boxShadow: hover && !animando ? "0 2px 6px rgba(0,0,0,0.05)" : "none",
@@ -696,14 +673,9 @@ function TareaItem({ tarea, onCompletar, onEliminar, onEditar }: {
         width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
         border: `2px solid ${tarea.completado || animando ? "#059669" : p.dot}`,
         background: tarea.completado || animando ? "#059669" : "transparent",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        transition: "all 0.3s ease",
+        display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease",
       }}>
-        {(tarea.completado || animando) && (
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        )}
+        {(tarea.completado || animando) && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <span style={{ fontSize: 14, fontWeight: 500, display: "block", color: tarea.completado || animando ? "#9CA3AF" : "#1A1A1A", textDecoration: tarea.completado || animando ? "line-through" : "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", transition: "all 0.4s ease" }}>
@@ -718,7 +690,7 @@ function TareaItem({ tarea, onCompletar, onEliminar, onEditar }: {
           style={{ background: "none", border: `0.5px solid ${hover ? "#D1D5DB" : "#E5E7EB"}`, cursor: "pointer", color: hover ? "#6B7280" : "#D1D5DB", fontSize: 13, padding: "4px 8px", borderRadius: 6, transition: "all 0.15s" }}
           onMouseEnter={e => { e.currentTarget.style.color = "#6366F1"; e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.background = "#EEF2FF"; }}
           onMouseLeave={e => { e.currentTarget.style.color = hover ? "#6B7280" : "#D1D5DB"; e.currentTarget.style.borderColor = hover ? "#D1D5DB" : "#E5E7EB"; e.currentTarget.style.background = "none"; }}
-        >✎ Editar</button>
+        >Editar</button>
         <button onClick={e => { e.stopPropagation(); onEliminar(tarea); }}
           style={{ background: "none", border: `0.5px solid ${hover ? "#D1D5DB" : "#E5E7EB"}`, cursor: "pointer", color: hover ? "#6B7280" : "#D1D5DB", fontSize: 13, padding: "4px 8px", borderRadius: 6, transition: "all 0.15s" }}
           onMouseEnter={e => { e.currentTarget.style.color = "#EF4444"; e.currentTarget.style.borderColor = "#FECACA"; e.currentTarget.style.background = "#FEF2F2"; }}

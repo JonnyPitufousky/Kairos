@@ -27,6 +27,7 @@ export default function ModalTarea({ titulo, boton, fechaInicial = "", onSubmit,
   const [formFecha, setFormFecha] = useState(fechaInicial);
   const [formHoraInicio, setFormHoraInicio] = useState("");
   const [formHoraFin, setFormHoraFin] = useState("");
+  const [errorHoras, setErrorHoras] = useState("");
 
   function buildFechaVencimiento(): string {
     if (!formFecha) return "";
@@ -38,6 +39,11 @@ export default function ModalTarea({ titulo, boton, fechaInicial = "", onSubmit,
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!formTitulo.trim() || !formFecha) return;
+    if (formHoraInicio && formHoraFin && formHoraInicio >= formHoraFin) {
+      setErrorHoras("La hora de inicio debe ser anterior a la hora de fin.");
+      return;
+    }
+    setErrorHoras("");
     onSubmit({
       titulo: formTitulo,
       descripcion: formDescripcion || null,
@@ -101,14 +107,14 @@ export default function ModalTarea({ titulo, boton, fechaInicial = "", onSubmit,
             </label>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <input
-                type="time" value={formHoraInicio} onChange={e => setFormHoraInicio(e.target.value)}
+                type="time" value={formHoraInicio} onChange={e => { setFormHoraInicio(e.target.value); setErrorHoras(""); }}
                 style={{ flex: 1, border: "1.5px solid #E5E7EB", borderRadius: 8, padding: "9px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}
                 onFocus={e => (e.currentTarget.style.borderColor = "#6366F1")}
                 onBlur={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
               />
               <span style={{ fontSize: 13, color: "#9CA3AF", flexShrink: 0 }}>→</span>
               <input
-                type="time" value={formHoraFin} onChange={e => setFormHoraFin(e.target.value)}
+                type="time" value={formHoraFin} onChange={e => { setFormHoraFin(e.target.value); setErrorHoras(""); }}
                 style={{ flex: 1, border: "1.5px solid #E5E7EB", borderRadius: 8, padding: "9px 10px", fontSize: 13, outline: "none", boxSizing: "border-box" }}
                 onFocus={e => (e.currentTarget.style.borderColor = "#6366F1")}
                 onBlur={e => (e.currentTarget.style.borderColor = "#E5E7EB")}
@@ -116,6 +122,9 @@ export default function ModalTarea({ titulo, boton, fechaInicial = "", onSubmit,
             </div>
             {formHoraInicio && !formHoraFin && (
               <p style={{ fontSize: 11, color: "#D97706", marginTop: 5 }}>Añade hora de fin para activar la detección automática</p>
+            )}
+            {errorHoras && (
+              <p style={{ fontSize: 11, color: "#EF4444", marginTop: 5, fontWeight: 500 }}>{errorHoras}</p>
             )}
           </div>
 
