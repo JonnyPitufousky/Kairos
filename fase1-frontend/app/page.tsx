@@ -14,12 +14,12 @@ interface Tarea {
 }
 
 interface Rutina {
-  id: number;
-  titulo: string;
+  id: string;
+  nombre: string;
+  diaSemana: number;
   horaInicio: string;
   horaFin: string;
-  categoria: string;
-  color: string;
+  color: string | null;
 }
 
 const BACKEND = "http://localhost:3000";
@@ -30,11 +30,6 @@ const PRIORIDAD_CONFIG = {
   baja:  { label: "Baja",  color: "#059669", bg: "#F0FDF4", dot: "#059669" },
 };
 
-const RUTINAS_HOY: Rutina[] = [
-  { id: 1, titulo: "Clase de Cálculo",           horaInicio: "09:00", horaFin: "11:00", categoria: "Universidad", color: "#6366F1" },
-  { id: 2, titulo: "Almuerzo",                   horaInicio: "13:00", horaFin: "14:00", categoria: "Personal",    color: "#059669" },
-  { id: 3, titulo: "Práctica de Programación",   horaInicio: "16:00", horaFin: "18:00", categoria: "Universidad", color: "#6366F1" },
-];
 
 function parseTarea(tarea: Tarea): { fechaBase: Date; horaInicio: string | null; horaFin: string | null } {
   if (!tarea.fecha_vencimiento) return { fechaBase: new Date(), horaInicio: null, horaFin: null };
@@ -107,6 +102,7 @@ export default function Home() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const [tareas, setTareas]                       = useState<Tarea[]>([]);
+  const [rutinas, setRutinas] = useState<Rutina[]>([]);
   const [cargando, setCargando]                   = useState(true);
   const [confirmarEliminar, setConfirmarEliminar] = useState<Tarea | null>(null);
   const [editarTarea, setEditarTarea]             = useState<Tarea | null>(null);
@@ -172,9 +168,13 @@ export default function Home() {
 
   async function cargarTareas() {
     setCargando(true);
-    const res = await apiFetch(`${BACKEND}/api/tareas`);
-    const data = await res.json();
-    setTareas(Array.isArray(data) ? data : []);
+    const [rTareas, rRutinas] = await Promise.all([
+      apiFetch(`${BACKEND}/api/tareas`),
+      apiFetch(`${BACKEND}/api/rutinas`),
+    ]);
+    const [dTareas, dRutinas] = await Promise.all([rTareas.json(), rRutinas.json()]);
+    setTareas(Array.isArray(dTareas) ? dTareas : []);
+    setRutinas(Array.isArray(dRutinas) ? dRutinas : []);
     setCargando(false);
   }
 
@@ -271,8 +271,11 @@ export default function Home() {
     pendientes[0];
 
   const restasPendientes = pendientes.filter(t => t.id !== heroTarea?.id);
-  const rutinaActual     = getRutinaActual(RUTINAS_HOY);
 
+    // 0 = lunes, igual que en el calendario
+  const diaSemanaHoy = (new Date().getDay() + 6) % 7;
+  const RUTINAS_HOY  = rutinas.filter(r => r.diaSemana === diaSemanaHoy);
+  const rutinaActual = getRutinaActual(RUTINAS_HOY);
   return (
     <div style={{ background: "#FAFAF9", minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "40px 24px 80px" }}>
@@ -373,9 +376,8 @@ export default function Home() {
                 <div style={{ background: "#1A1A1A", borderRadius: 14, padding: "16px", border: "1px solid #374151" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: rutinaActual.color, display: "inline-block" }} />
-                    <span style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500 }}>{rutinaActual.categoria}</span>
                   </div>
-                  <p style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF", margin: "0 0 4px" }}>{rutinaActual.titulo}</p>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF", margin: "0 0 4px" }}>{rutinaActual.nombre}</p>
                   <p style={{ fontSize: 12, color: "#6B7280", margin: 0 }}>{rutinaActual.horaInicio} – {rutinaActual.horaFin}</p>
                 </div>
               </div>
@@ -395,7 +397,7 @@ export default function Home() {
                       opacity: esPasada ? 0.5 : 1, transition: "all 0.2s",
                     }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: esPasada ? "#9CA3AF" : "#1A1A1A" }}>{rutina.titulo}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: esPasada ? "#9CA3AF" : "#1A1A1A" }}>{rutina.nombre}</span>
                         {esActual && <span style={{ fontSize: 10, fontWeight: 700, color: rutina.color, background: `${rutina.color}15`, padding: "2px 7px", borderRadius: 99 }}>Ahora</span>}
                       </div>
                       <p style={{ fontSize: 11, color: "#9CA3AF", margin: "3px 0 0" }}>{rutina.horaInicio} – {rutina.horaFin}</p>
@@ -403,7 +405,6 @@ export default function Home() {
                   );
                 })}
               </div>
-              <p style={{ fontSize: 11, color: "#D1D5DB", marginTop: 12, textAlign: "center", fontStyle: "italic" }}>Rutinas reales próximamente</p>
             </div>
           </div>
         </div>
