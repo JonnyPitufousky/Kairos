@@ -19,14 +19,24 @@ model Tarea {
 }
 
 model Rutina {
-  id         String   @id @default(cuid())
-  nombre     String
-  diaSemana  Int
-  horaInicio String
-  horaFin    String
-  color      String?
-  userId     String
-  creadoEn   DateTime @default(now())
+  id          String            @id @default(cuid())
+  nombre      String
+  diaSemana   Int
+  horaInicio  String
+  horaFin     String
+  color       String?
+  userId      String
+  creadoEn    DateTime          @default(now())
+  excepciones RutinaExcepcion[]
+}
+
+model RutinaExcepcion {
+  id       String   @id @default(cuid())
+  rutinaId String
+  rutina   Rutina   @relation(fields: [rutinaId], references: [id], onDelete: Cascade)
+  fecha    String
+  userId   String
+  creadoEn DateTime @default(now())
 }
 
 model Objetivo {

@@ -64,9 +64,8 @@ app.post('/api/tareas', requireAuth, async (req, res) => {
 app.put('/api/tareas/:id', requireAuth, async (req, res) => {
   try {
     const { titulo, descripcion, completado, prioridad, fecha_vencimiento } = req.body
-
     const tarea = await prisma.tarea.update({
-      where: { id: req.params.id, userId: req.userId },  // ← security check
+      where: { id: req.params.id, userId: req.userId },
       data: {
         ...(titulo !== undefined && { titulo }),
         ...(descripcion !== undefined && { descripcion }),
@@ -107,6 +106,18 @@ app.get('/api/rutinas', requireAuth, async (req, res) => {
   }
 })
 
+// EXCEPCIONES de rutina
+app.get('/api/rutinas/excepciones', requireAuth, async (req, res) => {
+  try {
+    const excepciones = await prisma.rutinaExcepcion.findMany({
+      where: { userId: req.userId }
+    })
+    res.json(excepciones)
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener excepciones' })
+  }
+})
+
 app.post('/api/rutinas', requireAuth, async (req, res) => {
   try {
     const { nombre, diaSemana, horaInicio, horaFin, color } = req.body
@@ -142,15 +153,18 @@ app.put('/api/rutinas/:id', requireAuth, async (req, res) => {
   }
 })
 
-app.delete('/api/rutinas/:id', requireAuth, async (req, res) => {
+
+
+app.post('/api/rutinas/:id/excepciones', requireAuth, async (req, res) => {
   try {
-    const rutina = await prisma.rutina.delete({
-      where: { id: req.params.id, userId: req.userId }
+    const { fecha } = req.body
+    if (!fecha) return res.status(400).json({ error: 'Falta la fecha' })
+    const excepcion = await prisma.rutinaExcepcion.create({
+      data: { rutinaId: req.params.id, fecha, userId: req.userId }
     })
-    res.json(rutina)
+    res.status(201).json(excepcion)
   } catch (error) {
-    if (error.code === 'P2025') return res.status(404).json({ error: 'Rutina no encontrada' })
-    res.status(500).json({ error: 'Error al eliminar rutina' })
+    res.status(500).json({ error: 'Error al crear excepción' })
   }
 })
 
@@ -209,15 +223,19 @@ app.put('/api/objetivos/:id', requireAuth, async (req, res) => {
   }
 })
 
-app.delete('/api/objetivos/:id', requireAuth, async (req, res) => {
+app.delete('/api/rutinas/:id', requireAuth, async (req, res) => {
   try {
-    const objetivo = await prisma.objetivo.delete({
+    // Primero eliminar las excepciones de esa rutina
+    await prisma.rutinaExcepcion.deleteMany({
+      where: { rutinaId: req.params.id }
+    })
+    const rutina = await prisma.rutina.delete({
       where: { id: req.params.id, userId: req.userId }
     })
-    res.json(objetivo)
+    res.json(rutina)
   } catch (error) {
-    if (error.code === 'P2025') return res.status(404).json({ error: 'Objetivo no encontrado' })
-    res.status(500).json({ error: 'Error al eliminar objetivo' })
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Rutina no encontrada' })
+    res.status(500).json({ error: 'Error al eliminar rutina' })
   }
 })
 
