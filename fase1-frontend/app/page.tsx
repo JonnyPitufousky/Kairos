@@ -302,7 +302,13 @@ export default function Home() {
           )}
         </div>
 
-        {/* Grid */}
+        {!cargando && pendientes.length === 0 && completadas.length === 0 && RUTINAS_HOY.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "80px 0 60px" }}>
+            <p style={{ fontSize: 56, marginBottom: 18, lineHeight: 1 }}>✦</p>
+            <h2 style={{ fontSize: 28, fontWeight: 700, color: "#1A1A1A", margin: "0 0 10px", letterSpacing: "-0.5px" }}>Día despejado</h2>
+            <p style={{ color: "#9CA3AF", fontSize: 15, margin: 0 }}>No tienes tareas ni rutinas para hoy</p>
+          </div>
+        ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 24, alignItems: "start" }}>
 
           {/* Columna izquierda */}
@@ -311,9 +317,7 @@ export default function Home() {
               <p style={{ textAlign: "center", color: "#9CA3AF", padding: "40px 0", fontSize: 14 }}>Cargando...</p>
             ) : pendientes.length === 0 && completadas.length === 0 ? (
               <div style={{ textAlign: "center", padding: "40px 0" }}>
-                <p style={{ fontSize: 40, marginBottom: 12 }}>✦</p>
-                <p style={{ color: "#6B7280", fontSize: 15, fontWeight: 500 }}>Día despejado</p>
-                <p style={{ color: "#9CA3AF", fontSize: 13, marginTop: 4 }}>Añade tu primera tarea</p>
+                <p style={{ color: "#9CA3AF", fontSize: 14 }}>Sin tareas para hoy</p>
               </div>
             ) : (
               <>
@@ -382,6 +386,7 @@ export default function Home() {
                 </div>
               </div>
             )}
+            {RUTINAS_HOY.length > 0 && (
             <div>
               <p style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Rutinas de hoy</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -406,8 +411,10 @@ export default function Home() {
                 })}
               </div>
             </div>
+            )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Toast */}

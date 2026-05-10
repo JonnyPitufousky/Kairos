@@ -18,9 +18,15 @@ const COLOR_LINEA2 = "#DDDFE2"; // header bottom y exteriores
 
 interface Tarea  { id: string; titulo: string; completado: boolean; fecha_vencimiento: string | null; prioridad: "baja" | "media" | "alta"; }
 interface Rutina { id: string; nombre: string; diaSemana: number; horaInicio: string; horaFin: string; color: string | null; }
-interface Evento { id: string; titulo: string; descripcion: string | null; fecha: string; horaInicio: string | null; horaFin: string | null; }
+interface Evento          { id: string; titulo: string; descripcion: string | null; fecha: string; horaInicio: string | null; horaFin: string | null; }
+interface RutinaExcepcion { id: string; rutinaId: string; fecha: string; }
 type VistaType = "dia" | "semana" | "mes" | "ano";
-interface Slot  { fecha: Date; hora: string; horaFin: string; }
+interface Slot      { fecha: Date; hora: string; horaFin: string; }
+interface Conflicto { tipo: "rutina" | "tarea" | "evento"; id: string; titulo: string; }
+function solapan(aIni: string, aFin: string, bIni: string, bFin: string): boolean {
+  const m = (h: string) => { const [hh, mm] = h.split(":").map(Number); return hh * 60 + mm; };
+  return m(aIni) < m(bFin) && m(bIni) < m(aFin);
+}
 
 function mins0(hora: string): number { const [h, m] = hora.split(":").map(Number); return h * 60 + m; }
 function parseTarea(t: Tarea): { fecha: Date; horaInicio: string | null; horaFin: string | null } | null {
@@ -47,12 +53,13 @@ export default function CalendarioPage() {
   const [tareas, setTareas]           = useState<Tarea[]>([]);
   const [rutinas, setRutinas]         = useState<Rutina[]>([]);
   const [eventos, setEventos]         = useState<Evento[]>([]);
+  const [excepciones, setExcepciones] = useState<RutinaExcepcion[]>([]);
   const [modalEvento, setModalEvento] = useState(false);
   const [modalRutina, setModalRutina] = useState(false);
   const [modalTarea, setModalTarea]   = useState(false);
   const [slot, setSlot]               = useState<Slot | null>(null);
   const [speedDial, setSpeedDial]     = useState(false);
-  const [menuBloque, setMenuBloque]   = useState<{tipo:"tarea"|"rutina"|"evento"; id:string; titulo:string} | null>(null);
+  const [menuBloque, setMenuBloque]   = useState<{tipo:"tarea"|"rutina"|"evento"; id:string; titulo:string; fecha?:string} | null>(null);
   const [editarEvento, setEditarEvento] = useState<Evento | null>(null);
   const [editarRutina, setEditarRutina] = useState<Rutina | null>(null);
   const [editarTarea,  setEditarTarea]  = useState<Tarea  | null>(null);
@@ -65,9 +72,9 @@ export default function CalendarioPage() {
 
   async function cargarDatos() {
     try {
-      const [rT, rR, rE] = await Promise.all([apiFetch(`${BACKEND}/api/tareas`), apiFetch(`${BACKEND}/api/rutinas`), apiFetch(`${BACKEND}/api/eventos`)]);
-      const [dT, dR, dE] = await Promise.all([rT.json(), rR.json(), rE.json()]);
-      setTareas(Array.isArray(dT) ? dT : []); setRutinas(Array.isArray(dR) ? dR : []); setEventos(Array.isArray(dE) ? dE : []);
+      const [rT, rR, rE, rX] = await Promise.all([apiFetch(`${BACKEND}/api/tareas`), apiFetch(`${BACKEND}/api/rutinas`), apiFetch(`${BACKEND}/api/eventos`), apiFetch(`${BACKEND}/api/rutinas/excepciones`)]);
+      const [dT, dR, dE, dX] = await Promise.all([rT.json(), rR.json(), rE.json(), rX.json()]);
+      setTareas(Array.isArray(dT) ? dT : []); setRutinas(Array.isArray(dR) ? dR : []); setEventos(Array.isArray(dE) ? dE : []); setExcepciones(Array.isArray(dX) ? dX : []);
     } catch { /* silencioso */ }
   }
 
@@ -89,13 +96,19 @@ export default function CalendarioPage() {
     setSpeedDial(true);
   }
 
-  function abrirMenuBloque(tipo: "tarea"|"rutina"|"evento", id: string, titulo: string) {
-    setMenuBloque({ tipo, id, titulo });
+  function abrirMenuBloque(tipo: "tarea"|"rutina"|"evento", id: string, titulo: string, fecha?: string) {
+    setMenuBloque({ tipo, id, titulo, fecha });
   }
 
   async function eliminarBloque(tipo: "tarea"|"rutina"|"evento", id: string) {
     const path = tipo === "evento" ? "eventos" : tipo === "rutina" ? "rutinas" : "tareas";
     await apiFetch(`${BACKEND}/api/${path}/${id}`, { method: "DELETE" });
+    setMenuBloque(null);
+    cargarDatos();
+  }
+
+  async function eliminarRutinaDia(id: string, fecha: string) {
+    await apiFetch(`${BACKEND}/api/rutinas/${id}/excepciones`, { method: "POST", body: JSON.stringify({ fecha }) });
     setMenuBloque(null);
     cargarDatos();
   }
@@ -128,8 +141,8 @@ export default function CalendarioPage() {
       </div>
 
       <div style={{ flex: 1, overflow: "hidden" }}>
-        {vista === "semana" && <VistaSemana fechaRef={fechaRef} tareas={tareas} rutinas={rutinas} eventos={eventos} scrollRef={scrollRef} onClickSlot={abrirSlot} onClickDia={d => { setFechaRef(d); setVista("dia"); }} onClickBloque={abrirMenuBloque} />}
-        {vista === "dia"    && <VistaDia    fecha={fechaRef}    tareas={tareas} rutinas={rutinas} eventos={eventos} scrollRef={scrollRef} onClickSlot={abrirSlot} onClickBloque={abrirMenuBloque} />}
+        {vista === "semana" && <VistaSemana fechaRef={fechaRef} tareas={tareas} rutinas={rutinas} eventos={eventos} excepciones={excepciones} scrollRef={scrollRef} onClickSlot={abrirSlot} onClickDia={d => { setFechaRef(d); setVista("dia"); }} onClickBloque={abrirMenuBloque} />}
+        {vista === "dia"    && <VistaDia    fecha={fechaRef}    tareas={tareas} rutinas={rutinas} eventos={eventos} excepciones={excepciones} scrollRef={scrollRef} onClickSlot={abrirSlot} onClickBloque={abrirMenuBloque} />}
         {vista === "mes"    && <VistaMes    fechaRef={fechaRef} tareas={tareas} rutinas={rutinas} eventos={eventos} onClickDia={d => { setFechaRef(d); setVista("dia"); }} />}
         {vista === "ano"    && <VistaAno    fechaRef={fechaRef} tareas={tareas} rutinas={rutinas} eventos={eventos} onClickMes={d => { setFechaRef(d); setVista("mes"); }} />}
       </div>
@@ -143,19 +156,22 @@ export default function CalendarioPage() {
       {menuBloque && (
         <MenuBloque
           titulo={menuBloque.titulo}
+          tipo={menuBloque.tipo}
+          fecha={menuBloque.fecha}
           onEditar={() => editarBloque(menuBloque.tipo, menuBloque.id)}
-          onEliminar={() => eliminarBloque(menuBloque.tipo, menuBloque.id)}
+          onEliminarDia={() => eliminarRutinaDia(menuBloque.id, menuBloque.fecha!)}
+          onEliminarSiempre={() => eliminarBloque(menuBloque.tipo, menuBloque.id)}
           onCerrar={() => setMenuBloque(null)}
         />
       )}
 
-      {modalEvento && <ModalEvento slotInicial={slot} onCerrar={() => { setModalEvento(false); setSlot(null); }} onGuardado={() => { setModalEvento(false); setSlot(null); cargarDatos(); }} apiFetch={apiFetch} />}
-      {modalRutina && <ModalRutina slotInicial={slot} onCerrar={() => { setModalRutina(false); setSlot(null); }} onGuardado={() => { setModalRutina(false); setSlot(null); cargarDatos(); }} apiFetch={apiFetch} />}
-      {modalTarea  && <ModalTareaSimple slotInicial={slot} onCerrar={() => { setModalTarea(false); setSlot(null); }} onGuardado={() => { setModalTarea(false); setSlot(null); cargarDatos(); }} apiFetch={apiFetch} />}
+      {modalEvento && <ModalEvento slotInicial={slot} onCerrar={() => { setModalEvento(false); setSlot(null); }} onGuardado={() => { setModalEvento(false); setSlot(null); cargarDatos(); }} apiFetch={apiFetch} tareas={tareas} rutinas={rutinas} eventos={eventos} />}
+      {modalRutina && <ModalRutina slotInicial={slot} onCerrar={() => { setModalRutina(false); setSlot(null); }} onGuardado={() => { setModalRutina(false); setSlot(null); cargarDatos(); }} apiFetch={apiFetch} tareas={tareas} rutinas={rutinas} eventos={eventos} />}
+      {modalTarea  && <ModalTareaSimple slotInicial={slot} onCerrar={() => { setModalTarea(false); setSlot(null); }} onGuardado={() => { setModalTarea(false); setSlot(null); cargarDatos(); }} apiFetch={apiFetch} tareas={tareas} rutinas={rutinas} eventos={eventos} />}
 
-      {editarEvento && <ModalEvento eventoEditar={editarEvento} slotInicial={null} onCerrar={() => setEditarEvento(null)} onGuardado={() => { setEditarEvento(null); cargarDatos(); }} apiFetch={apiFetch} />}
-      {editarRutina && <ModalRutina rutinaEditar={editarRutina} slotInicial={null} onCerrar={() => setEditarRutina(null)} onGuardado={() => { setEditarRutina(null); cargarDatos(); }} apiFetch={apiFetch} />}
-      {editarTarea  && <ModalTareaSimple tareaEditar={editarTarea} slotInicial={null} onCerrar={() => setEditarTarea(null)} onGuardado={() => { setEditarTarea(null); cargarDatos(); }} apiFetch={apiFetch} />}
+      {editarEvento && <ModalEvento eventoEditar={editarEvento} slotInicial={null} onCerrar={() => setEditarEvento(null)} onGuardado={() => { setEditarEvento(null); cargarDatos(); }} apiFetch={apiFetch} tareas={tareas} rutinas={rutinas} eventos={eventos} />}
+      {editarRutina && <ModalRutina rutinaEditar={editarRutina} slotInicial={null} onCerrar={() => setEditarRutina(null)} onGuardado={() => { setEditarRutina(null); cargarDatos(); }} apiFetch={apiFetch} tareas={tareas} rutinas={rutinas} eventos={eventos} />}
+      {editarTarea  && <ModalTareaSimple tareaEditar={editarTarea} slotInicial={null} onCerrar={() => setEditarTarea(null)} onGuardado={() => { setEditarTarea(null); cargarDatos(); }} apiFetch={apiFetch} tareas={tareas} rutinas={rutinas} eventos={eventos} />}
     </div>
   );
 }
@@ -164,39 +180,76 @@ export default function CalendarioPage() {
 // El header de días va DENTRO del contenedor scrollable como sticky.
 // Esto evita el desalineamiento causado por el scrollbar.
 
-function VistaSemana({ fechaRef, tareas, rutinas, eventos, scrollRef, onClickSlot, onClickDia, onClickBloque }: {
-  fechaRef: Date; tareas: Tarea[]; rutinas: Rutina[]; eventos: Evento[];
+function VistaSemana({ fechaRef, tareas, rutinas, eventos, excepciones, scrollRef, onClickSlot, onClickDia, onClickBloque }: {
+  fechaRef: Date; tareas: Tarea[]; rutinas: Rutina[]; eventos: Evento[]; excepciones: RutinaExcepcion[];
   scrollRef: React.RefObject<HTMLDivElement>;
   onClickSlot: (f: Date, h: string) => void; onClickDia: (f: Date) => void;
-  onClickBloque: (tipo: "tarea"|"rutina"|"evento", id: string, titulo: string) => void;
+  onClickBloque: (tipo: "tarea"|"rutina"|"evento", id: string, titulo: string, fecha?: string) => void;
 }) {
   const ini  = startOfWeek(fechaRef, { weekStartsOn: 1 });
   const dias = Array.from({ length: 7 }, (_, i) => addDays(ini, i));
+  const [expandidos, setExpandidos] = useState<Set<number>>(new Set());
+
+  const porDia = dias.map(dia =>
+    tareas.filter(t => { const p = parseTarea(t); return p && isSameDay(p.fecha, dia) && !p.horaInicio; })
+  );
+
+  function toggleDia(i: number) {
+    setExpandidos(prev => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  }
+
+  const hayExpandido = dias.some((_, i) => expandidos.has(i) && porDia[i].length > 0);
 
   return (
     <div style={{ height: "100%", overflow: "hidden" }}>
-      {/* Todo dentro del mismo contenedor scrollable → alineación perfecta */}
       <div ref={scrollRef} style={{ height: "100%", overflowY: "auto" }}>
 
-        {/* Header días — sticky dentro del scroll */}
-        <div style={{ position: "sticky", top: 0, zIndex: 10, background: "#FAFAF9", display: "flex", borderBottom: `2px solid ${COLOR_LINEA2}` }}>
-          <div style={{ width: 52, flexShrink: 0 }} />
-          {dias.map((dia, i) => {
-            const hoy = isToday(dia);
-            return (
-              <div key={i} onClick={() => onClickDia(dia)} style={{ flex: 1, textAlign: "center", padding: "6px 0", cursor: "pointer", borderLeft: `1px solid ${COLOR_LINEA2}`, background: hoy ? "#F0FDF4" : "#FAFAF9" }}>
-                <p style={{ fontSize: 10, color: hoy ? "#16A34A" : "#9CA3AF", margin: "0 0 3px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: hoy ? 700 : 500 }}>
-                  {format(dia, "EEE", { locale: es })}
-                </p>
-                <div style={{ width: 30, height: 30, borderRadius: "50%", margin: "0 auto", background: hoy ? "#16A34A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ fontSize: 14, fontWeight: hoy ? 700 : 400, color: hoy ? "#fff" : "#1A1A1A" }}>{format(dia, "d")}</span>
+        <div style={{ position: "sticky", top: 0, zIndex: 10, background: "#FAFAF9", borderBottom: `2px solid ${COLOR_LINEA2}` }}>
+          <div style={{ display: "flex" }}>
+            <div style={{ width: 52, flexShrink: 0 }} />
+            {dias.map((dia, i) => {
+              const hoy   = isToday(dia);
+              const count = porDia[i].length;
+              const exp   = expandidos.has(i);
+              return (
+                <div key={i} style={{ flex: 1, textAlign: "center", padding: "6px 0 5px", borderLeft: `1px solid ${COLOR_LINEA2}`, background: hoy ? "#F0FDF4" : "#FAFAF9" }}>
+                  <div onClick={() => onClickDia(dia)} style={{ cursor: "pointer" }}>
+                    <p style={{ fontSize: 10, color: hoy ? "#16A34A" : "#9CA3AF", margin: "0 0 3px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: hoy ? 700 : 500 }}>
+                      {format(dia, "EEE", { locale: es })}
+                    </p>
+                    <div style={{ width: 30, height: 30, borderRadius: "50%", margin: "0 auto", background: hoy ? "#16A34A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: 14, fontWeight: hoy ? 700 : 400, color: hoy ? "#fff" : "#1A1A1A" }}>{format(dia, "d")}</span>
+                    </div>
+                  </div>
+                  {count > 0 && (
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleDia(i); }}
+                      style={{ marginTop: 4, fontSize: 10, padding: "2px 7px", borderRadius: 10, border: "none", cursor: "pointer", background: exp ? "#EEF2FF" : "#F3F4F6", color: exp ? "#4F46E5" : "#9CA3AF", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3, transition: "all 0.15s" }}
+                    >
+                      {count} {count === 1 ? "tarea" : "tareas"}
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ transform: exp ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                  )}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
 
-        <ZonaSinHora diasSemana={dias} tareas={tareas} />
+          {hayExpandido && (
+            <div style={{ display: "flex", borderTop: `1px solid ${COLOR_LINEA}` }}>
+              <div style={{ width: 52, flexShrink: 0 }} />
+              {dias.map((_, i) => (
+                <div key={i} style={{ flex: 1, borderLeft: `1px solid ${COLOR_LINEA}`, padding: expandidos.has(i) && porDia[i].length > 0 ? "3px" : "0", overflow: "hidden" }}>
+                  {expandidos.has(i) && porDia[i].map(t => (
+                    <div key={t.id} style={{ fontSize: 12, fontWeight: 500, padding: "5px 5px", borderRadius: 4, marginBottom: 2, background: `${PCOLOR[t.prioridad]}18`, color: PCOLOR[t.prioridad], borderLeft: `2px solid ${PCOLOR[t.prioridad]}`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {t.titulo}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Grid de horas */}
         <div style={{ display: "flex" }}>
@@ -208,7 +261,7 @@ function VistaSemana({ fechaRef, tareas, rutinas, eventos, scrollRef, onClickSlo
             ))}
           </div>
           {dias.map((dia, i) => (
-            <ColumnaDia key={i} dia={dia} diaIdx={diaIdx(dia)} tareas={tareas} rutinas={rutinas} eventos={eventos} scrollRef={scrollRef} onClickSlot={onClickSlot} onClickBloque={onClickBloque} />
+            <ColumnaDia key={i} dia={dia} diaIdx={diaIdx(dia)} tareas={tareas} rutinas={rutinas} eventos={eventos} excepciones={excepciones} scrollRef={scrollRef} onClickSlot={onClickSlot} onClickBloque={onClickBloque} />
           ))}
         </div>
       </div>
@@ -218,17 +271,18 @@ function VistaSemana({ fechaRef, tareas, rutinas, eventos, scrollRef, onClickSlo
 
 // ─── Columna día ──────────────────────────────────────────────────────────────
 
-function ColumnaDia({ dia, diaIdx: dIdx, tareas, rutinas, eventos, scrollRef, onClickSlot, onClickBloque }: {
-  dia: Date; diaIdx: number; tareas: Tarea[]; rutinas: Rutina[]; eventos: Evento[];
+function ColumnaDia({ dia, diaIdx: dIdx, tareas, rutinas, eventos, excepciones, scrollRef, onClickSlot, onClickBloque }: {
+  dia: Date; diaIdx: number; tareas: Tarea[]; rutinas: Rutina[]; eventos: Evento[]; excepciones: RutinaExcepcion[];
   scrollRef: React.RefObject<HTMLDivElement>; onClickSlot: (f: Date, h: string) => void;
-  onClickBloque: (tipo: "tarea"|"rutina"|"evento", id: string, titulo: string) => void;
+  onClickBloque: (tipo: "tarea"|"rutina"|"evento", id: string, titulo: string, fecha?: string) => void;
 }) {
   const hoy        = isToday(dia);
   const horaActual = hoy ? horaActualInt() : -1;
   const [horaHover, setHoraHover] = useState<number | null>(null);
   const [horaClick, setHoraClick] = useState<number | null>(null);
+  const fechaStr   = format(dia, "yyyy-MM-dd");
 
-  const rutinasDia = rutinas.filter(r => r.diaSemana === dIdx);
+  const rutinasDia = rutinas.filter(r => r.diaSemana === dIdx && !excepciones.some(e => e.rutinaId === r.id && e.fecha === fechaStr));
   const tareasDia  = tareas.filter(t => { const p = parseTarea(t); return p && isSameDay(p.fecha, dia) && p.horaInicio; });
   const eventosDia = eventos.filter(e => e.horaInicio && isSameDay(new Date(e.fecha), dia));
 
@@ -272,7 +326,7 @@ function ColumnaDia({ dia, diaIdx: dIdx, tareas, rutinas, eventos, scrollRef, on
           }} />
         );
       })}
-      {rutinasDia.map(r  => <BloqueHorario key={`r-${r.id}`}  id={r.id}  titulo={r.nombre}  horaInicio={r.horaInicio}  horaFin={r.horaFin}  color={r.color||"#6366F1"} tipo="rutina"  onClickBloque={onClickBloque} />)}
+      {rutinasDia.map(r  => <BloqueHorario key={`r-${r.id}`}  id={r.id}  titulo={r.nombre}  horaInicio={r.horaInicio}  horaFin={r.horaFin}  color={r.color||"#6366F1"} tipo="rutina"  fecha={fechaStr} onClickBloque={onClickBloque} />)}
       {tareasDia.map(t   => { const p=parseTarea(t)!; return <BloqueHorario key={`t-${t.id}`} id={t.id} titulo={t.titulo} horaInicio={p.horaInicio!} horaFin={p.horaFin||horaFallback(p.horaInicio!)} color={PCOLOR[t.prioridad]} tipo="tarea"  completado={t.completado} onClickBloque={onClickBloque} />; })}
       {eventosDia.map(ev => <BloqueHorario key={`e-${ev.id}`} id={ev.id} titulo={ev.titulo} horaInicio={ev.horaInicio!} horaFin={ev.horaFin||horaFallback(ev.horaInicio!)} color="#6366F1" tipo="evento" onClickBloque={onClickBloque} />)}
     </div>
@@ -281,17 +335,19 @@ function ColumnaDia({ dia, diaIdx: dIdx, tareas, rutinas, eventos, scrollRef, on
 
 // ─── Vista Día ────────────────────────────────────────────────────────────────
 
-function VistaDia({ fecha, tareas, rutinas, eventos, scrollRef, onClickSlot, onClickBloque }: {
-  fecha: Date; tareas: Tarea[]; rutinas: Rutina[]; eventos: Evento[];
+function VistaDia({ fecha, tareas, rutinas, eventos, excepciones, scrollRef, onClickSlot, onClickBloque }: {
+  fecha: Date; tareas: Tarea[]; rutinas: Rutina[]; eventos: Evento[]; excepciones: RutinaExcepcion[];
   scrollRef: React.RefObject<HTMLDivElement>; onClickSlot: (f: Date, h: string) => void;
-  onClickBloque: (tipo: "tarea"|"rutina"|"evento", id: string, titulo: string) => void;
+  onClickBloque: (tipo: "tarea"|"rutina"|"evento", id: string, titulo: string, fecha?: string) => void;
 }) {
   const hoy        = isToday(fecha);
   const horaActual = hoy ? horaActualInt() : -1;
   const [horaHover, setHoraHover] = useState<number | null>(null);
   const [horaClick, setHoraClick] = useState<number | null>(null);
+  const [todoDiaExpandido, setTodoDiaExpandido] = useState(false);
   const idx        = diaIdx(fecha);
-  const rutinasDia = rutinas.filter(r => r.diaSemana === idx);
+  const fechaStr   = format(fecha, "yyyy-MM-dd");
+  const rutinasDia = rutinas.filter(r => r.diaSemana === idx && !excepciones.some(e => e.rutinaId === r.id && e.fecha === fechaStr));
   const tareasDia  = tareas.filter(t => { const p=parseTarea(t); return p && isSameDay(p.fecha,fecha) && p.horaInicio; });
   const sinHora    = tareas.filter(t => { const p=parseTarea(t); return p && isSameDay(p.fecha,fecha) && !p.horaInicio; });
   const eventosDia = eventos.filter(e => e.horaInicio && isSameDay(new Date(e.fecha),fecha));
@@ -314,17 +370,28 @@ function VistaDia({ fecha, tareas, rutinas, eventos, scrollRef, onClickSlot, onC
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {sinHora.length > 0 && (
-        <div style={{ flexShrink: 0, display: "flex", borderBottom: `1px solid ${COLOR_LINEA2}`, padding: "6px 0" }}>
-          <div style={{ width: 52, flexShrink: 0, textAlign: "right", paddingRight: 8 }}>
-            <span style={{ fontSize: 10, color: "#9CA3AF" }}>sin hora</span>
+        <div style={{ flexShrink: 0, borderBottom: `1px solid ${COLOR_LINEA2}` }}>
+          <div style={{ display: "flex", alignItems: "center", padding: "5px 16px 5px 0" }}>
+            <div style={{ width: 52, flexShrink: 0 }} />
+            <button
+              onClick={() => setTodoDiaExpandido(v => !v)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, background: todoDiaExpandido ? "#EEF2FF" : "#F3F4F6", border: "none", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 12, fontWeight: 600, color: todoDiaExpandido ? "#4F46E5" : "#6B7280", transition: "all 0.15s" }}
+            >
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ transform: todoDiaExpandido ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9"/></svg>
+              Todo el día · {sinHora.length} {sinHora.length === 1 ? "tarea" : "tareas"}
+            </button>
           </div>
-          <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 4, paddingRight: 16 }}>
-            {sinHora.map(t => (
-              <div key={t.id} style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: `${PCOLOR[t.prioridad]}18`, color: PCOLOR[t.prioridad], borderLeft: `2px solid ${PCOLOR[t.prioridad]}`, display: "flex", gap: 6, alignItems: "center" }}>
-                {t.titulo} <span style={{ fontSize: 10, opacity: 0.6 }}>Sin hora establecida</span>
+          {todoDiaExpandido && (
+            <div style={{ paddingBottom: 6 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "0 12px" }}>
+                {sinHora.map(t => (
+                  <div key={t.id} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 6, background: `${PCOLOR[t.prioridad]}18`, color: PCOLOR[t.prioridad], borderLeft: `3px solid ${PCOLOR[t.prioridad]}`, fontWeight: 500 }}>
+                    {t.titulo}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto" }}>
@@ -356,7 +423,7 @@ function VistaDia({ fecha, tareas, rutinas, eventos, scrollRef, onClickSlot, onC
                 }} />
               );
             })}
-            {rutinasDia.map(r  => <BloqueHorario key={`r-${r.id}`}  id={r.id}  titulo={r.nombre}  horaInicio={r.horaInicio}  horaFin={r.horaFin}  color={r.color||"#6366F1"} tipo="rutina"  onClickBloque={onClickBloque} />)}
+            {rutinasDia.map(r  => <BloqueHorario key={`r-${r.id}`}  id={r.id}  titulo={r.nombre}  horaInicio={r.horaInicio}  horaFin={r.horaFin}  color={r.color||"#6366F1"} tipo="rutina"  fecha={fechaStr} onClickBloque={onClickBloque} />)}
             {tareasDia.map(t   => { const p=parseTarea(t)!; return <BloqueHorario key={`t-${t.id}`} id={t.id} titulo={t.titulo} horaInicio={p.horaInicio!} horaFin={p.horaFin||horaFallback(p.horaInicio!)} color={PCOLOR[t.prioridad]} tipo="tarea"  completado={t.completado} onClickBloque={onClickBloque} />; })}
             {eventosDia.map(ev => <BloqueHorario key={`e-${ev.id}`} id={ev.id} titulo={ev.titulo} horaInicio={ev.horaInicio!} horaFin={ev.horaFin||horaFallback(ev.horaInicio!)} color="#6366F1" tipo="evento" onClickBloque={onClickBloque} />)}
           </div>
@@ -465,11 +532,11 @@ function VistaAno({ fechaRef, tareas, rutinas, eventos, onClickMes }: {
 
 // ─── Bloque horario ───────────────────────────────────────────────────────────
 
-function BloqueHorario({ id, titulo, horaInicio, horaFin, color, tipo, completado, onClickBloque }: { id:string; titulo:string; horaInicio:string; horaFin:string; color:string; tipo:"rutina"|"tarea"|"evento"; completado?:boolean; onClickBloque:(tipo:"tarea"|"rutina"|"evento",id:string,titulo:string)=>void; }) {
+function BloqueHorario({ id, titulo, horaInicio, horaFin, color, tipo, completado, fecha, onClickBloque }: { id:string; titulo:string; horaInicio:string; horaFin:string; color:string; tipo:"rutina"|"tarea"|"evento"; completado?:boolean; fecha?:string; onClickBloque:(tipo:"tarea"|"rutina"|"evento",id:string,titulo:string,fecha?:string)=>void; }) {
   const top    = (mins0(horaInicio)/60)*HORA_ALTO;
   const height = Math.max(((mins0(horaFin)-mins0(horaInicio))/60)*HORA_ALTO, 18);
   return (
-    <div onClick={e=>{e.stopPropagation();onClickBloque(tipo,id,titulo);}} style={{position:"absolute",left:2,right:2,top,height,background:`${color}1A`,borderLeft:`3px solid ${color}`,borderRadius:"0 5px 5px 0",padding:"2px 5px",overflow:"hidden",cursor:"pointer",zIndex:1,transition:"filter 0.15s"}}
+    <div onClick={e=>{e.stopPropagation();onClickBloque(tipo,id,titulo,fecha);}} style={{position:"absolute",left:2,right:2,top,height,background:`${color}1A`,borderLeft:`3px solid ${color}`,borderRadius:"0 5px 5px 0",padding:"2px 5px",overflow:"hidden",cursor:"pointer",zIndex:1,transition:"filter 0.15s"}}
       onMouseEnter={e=>(e.currentTarget.style.filter="brightness(0.93)")}
       onMouseLeave={e=>(e.currentTarget.style.filter="none")}
     >
@@ -479,28 +546,6 @@ function BloqueHorario({ id, titulo, horaInicio, horaFin, color, tipo, completad
   );
 }
 
-// ─── Zona sin hora ────────────────────────────────────────────────────────────
-
-function ZonaSinHora({ diasSemana, tareas }: { diasSemana: Date[]; tareas: Tarea[] }) {
-  const porDia = diasSemana.map(dia => tareas.filter(t=>{const p=parseTarea(t);return p&&isSameDay(p.fecha,dia)&&!p.horaInicio;}));
-  if (porDia.every(ts=>ts.length===0)) return null;
-  return (
-    <div style={{ display: "flex", borderBottom: `1px solid ${COLOR_LINEA2}` }}>
-      <div style={{ width: 52, flexShrink: 0, paddingRight: 8, paddingTop: 4, textAlign: "right" }}>
-        <span style={{ fontSize: 10, color: "#9CA3AF" }}>sin hora</span>
-      </div>
-      {diasSemana.map((_, i) => (
-        <div key={i} style={{ flex: 1, borderLeft: `1px solid ${COLOR_LINEA}`, minHeight: 24, padding: "2px" }}>
-          {porDia[i].map(t => (
-            <div key={t.id} style={{ fontSize: 10, fontWeight: 500, padding: "1px 4px", borderRadius: 3, marginBottom: 1, background: `${PCOLOR[t.prioridad]}18`, color: PCOLOR[t.prioridad], borderLeft: `2px solid ${PCOLOR[t.prioridad]}`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {t.titulo}
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // ─── Speed Dial ───────────────────────────────────────────────────────────────
 
@@ -531,98 +576,242 @@ function SpeedDial({ onNuevaTarea, onNuevaRutina, onNuevoEvento, abierto, setAbi
 
 // ─── Modales ──────────────────────────────────────────────────────────────────
 
-function MenuBloque({ titulo, onEditar, onEliminar, onCerrar }: { titulo:string; onEditar:()=>void; onEliminar:()=>void; onCerrar:()=>void; }) {
+function MenuBloque({ titulo, tipo, fecha, onEditar, onEliminarDia, onEliminarSiempre, onCerrar }: {
+  titulo: string; tipo: "tarea"|"rutina"|"evento"; fecha?: string;
+  onEditar: () => void; onEliminarDia: () => void;
+  onEliminarSiempre: () => void; onCerrar: () => void;
+}) {
+  const [fase, setFase] = useState<"menu" | "eliminar">("menu");
+  const esRutina = tipo === "rutina" && !!fecha;
+
+  // Obtiene el nombre del día a partir de la fecha para el mensaje contextual
+  const nombreDia = fecha
+    ? format(new Date(fecha), "EEEE", { locale: es })
+    : "";
+
   return (
     <Overlay onClick={onCerrar}>
-      <div onClick={e=>e.stopPropagation()} style={{...estiloModal,maxWidth:300}}>
-        <p style={{fontSize:12,fontWeight:600,color:"#9CA3AF",textTransform:"uppercase",letterSpacing:"0.06em",margin:"0 0 4px"}}>Bloque seleccionado</p>
-        <h3 style={{fontSize:16,fontWeight:700,color:"#1A1A1A",margin:"0 0 20px",lineHeight:1.3}}>{titulo}</h3>
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          <button onClick={onEditar} style={{...estiloBotonPrimario,width:"100%",textAlign:"center"}}>Editar</button>
-          <button onClick={onEliminar} style={{...estiloBotonSecundario,width:"100%",textAlign:"center",color:"#EF4444"}}>Eliminar</button>
-        </div>
+      <div onClick={e => e.stopPropagation()} style={{ ...estiloModal, maxWidth: 320 }}>
+
+        <p style={{ fontSize: 12, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>
+          {tipo === "rutina" ? "Rutina" : tipo === "evento" ? "Evento" : "Tarea"}
+        </p>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A", margin: "0 0 20px", lineHeight: 1.3 }}>
+          {titulo}
+        </h3>
+
+        {fase === "menu" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button onClick={onEditar} style={{ ...estiloBotonPrimario, width: "100%" }}>
+              Editar
+            </button>
+            <button
+              onClick={() => esRutina ? setFase("eliminar") : onEliminarSiempre()}
+              style={{ ...estiloBotonSecundario, width: "100%", color: "#EF4444", transition: "background 0.15s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#F3F4F6"; }}
+            >
+              Eliminar
+            </button>
+          </div>
+        )}
+
+        {fase === "eliminar" && esRutina && (
+          <>
+            <p style={{ fontSize: 13, color: "#6B7280", margin: "0 0 16px" }}>
+              ¿Quieres eliminar solo esta vez o siempre?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+             <button
+                onClick={onEliminarDia}
+                style={{ ...estiloBotonSecundario, width: "100%", textAlign: "left", color: "#D97706", transition: "background 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#FFF7ED"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#F3F4F6"; }}
+              >
+                <span style={{ display: "block", fontWeight: 600 }}>Solo este {nombreDia}</span>
+                <span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>
+                  La rutina seguirá existiendo el resto de semanas
+                </span>
+              </button>
+              <button
+                onClick={onEliminarSiempre}
+                style={{ ...estiloBotonSecundario, width: "100%", textAlign: "left", color: "#EF4444", transition: "background 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#F3F4F6"; }}
+              >
+                <span style={{ display: "block", fontWeight: 600 }}>Eliminar siempre</span>
+                <span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>
+                  Se borrará de todos los {nombreDia}s
+                </span>
+              </button>
+              <button
+                onClick={() => setFase("menu")}
+                style={{ ...estiloBotonSecundario, width: "100%", transition: "background 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#E5E7EB"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "#F3F4F6"; }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </Overlay>
   );
 }
 
-function ModalEvento({ slotInicial, eventoEditar, onCerrar, onGuardado, apiFetch }: { slotInicial:Slot|null; eventoEditar?:Evento|null; onCerrar:()=>void; onGuardado:()=>void; apiFetch:(url:string,options?:RequestInit)=>Promise<Response>; }) {
+function ModalEvento({ slotInicial, eventoEditar, onCerrar, onGuardado, apiFetch, tareas, rutinas: _r, eventos }: { slotInicial:Slot|null; eventoEditar?:Evento|null; onCerrar:()=>void; onGuardado:()=>void; apiFetch:(url:string,options?:RequestInit)=>Promise<Response>; tareas:Tarea[]; rutinas:Rutina[]; eventos:Evento[]; }) {
   const [titulo,setTitulo]=useState(eventoEditar?.titulo||"");
   const [fecha,setFecha]=useState(eventoEditar?.fecha||(slotInicial?format(slotInicial.fecha,"yyyy-MM-dd"):format(new Date(),"yyyy-MM-dd")));
   const [hIni,setHIni]=useState(eventoEditar?.horaInicio||slotInicial?.hora||"");
   const [hFin,setHFin]=useState(eventoEditar?.horaFin||slotInicial?.horaFin||"");
   const [desc,setDesc]=useState(eventoEditar?.descripcion||"");
-  const [guardando,setG]=useState(false); const [error,setError]=useState("");
+  const [guardando,setG]=useState(false);
+  const [error,setError]=useState("");
+  const [conflictos,setConflictos]=useState<Conflicto[]>([]);
+  const [fase,setFase]=useState<"form"|"conflicto"|"confirmar">("form");
   const esEdicion = !!eventoEditar;
-  async function guardar() {
-    if(!titulo.trim()){setError("El título es obligatorio.");return;} if(hIni&&!hFin){setError("Añade una hora de fin.");return;}
-    const body=JSON.stringify({titulo:titulo.trim(),descripcion:desc.trim()||null,fecha,horaInicio:hIni||null,horaFin:hFin||null});
-    setG(true); try{
-      const res = esEdicion
-        ? await apiFetch(`${BACKEND}/api/eventos/${eventoEditar!.id}`,{method:"PUT",body})
-        : await apiFetch(`${BACKEND}/api/eventos`,{method:"POST",body});
-      if(!res.ok){setError("Error al guardar.");return;}onGuardado();
-    }catch{setError("Error de conexión.");}finally{setG(false);}
+
+  function detectar(): Conflicto[] {
+    if (!hIni || !hFin) return [];
+    const cs: Conflicto[] = [];
+    eventos.forEach(e => {
+      if (e.id === eventoEditar?.id || !e.horaInicio || !e.horaFin) return;
+      if (e.fecha.slice(0,10) === fecha && solapan(hIni, hFin, e.horaInicio, e.horaFin))
+        cs.push({ tipo:"evento", id:e.id, titulo:e.titulo });
+    });
+    tareas.forEach(t => {
+      const p = parseTarea(t); if (!p?.horaInicio || !p?.horaFin) return;
+      if (t.fecha_vencimiento!.split("|")[0].split("T")[0] === fecha && solapan(hIni, hFin, p.horaInicio, p.horaFin))
+        cs.push({ tipo:"tarea", id:t.id, titulo:t.titulo });
+    });
+    return cs;
   }
-  return (<Overlay onClick={onCerrar}><div onClick={e=>e.stopPropagation()} style={estiloModal}>
-    <h3 style={estiloTituloModal}>{esEdicion?"Editar evento":"Nuevo evento"}</h3>
-    <Campo label="Título"><input autoFocus value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Nombre del evento" style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
-    <Campo label="Fecha"><input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
-    <Campo label="Horario"><div style={{display:"flex",gap:8,alignItems:"center"}}>
-      <input type="time" value={hIni} onChange={e=>setHIni(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
-      <span style={{color:"#9CA3AF",flexShrink:0}}>→</span>
-      <input type="time" value={hFin} onChange={e=>setHFin(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
-    </div></Campo>
-    <Campo label="Descripción"><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Opcional" style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
-    {error&&<p style={{fontSize:13,color:"#EF4444",margin:"0 0 12px"}}>{error}</p>}
-    <div style={{display:"flex",gap:10}}><button onClick={onCerrar} style={{...estiloBotonSecundario,flex:1}}>Cancelar</button><button onClick={guardar} disabled={guardando} style={{...estiloBotonPrimario,flex:2,opacity:guardando?0.7:1}}>{guardando?"Guardando…":esEdicion?"Guardar cambios":"Crear evento"}</button></div>
-  </div></Overlay>);
+
+  async function guardar() {
+    if (!titulo.trim()) { setError("El título es obligatorio."); return; }
+    if (hIni && !hFin) { setError("Añade una hora de fin."); return; }
+    const cs = detectar();
+    if (cs.length > 0) { setConflictos(cs); setFase("conflicto"); return; }
+    await guardarDefinitivo([]);
+  }
+
+  async function guardarDefinitivo(eliminar: Conflicto[]) {
+    setG(true);
+    try {
+      await Promise.all(eliminar.map(c => apiFetch(`${BACKEND}/api/${c.tipo==="evento"?"eventos":c.tipo==="rutina"?"rutinas":"tareas"}/${c.id}`, { method:"DELETE" })));
+      const body = JSON.stringify({ titulo:titulo.trim(), descripcion:desc.trim()||null, fecha, horaInicio:hIni||null, horaFin:hFin||null });
+      const res = esEdicion
+        ? await apiFetch(`${BACKEND}/api/eventos/${eventoEditar!.id}`, { method:"PUT", body })
+        : await apiFetch(`${BACKEND}/api/eventos`, { method:"POST", body });
+      if (!res.ok) { setError("Error al guardar."); setFase("form"); return; }
+      onGuardado();
+    } catch { setError("Error de conexión."); setFase("form"); } finally { setG(false); }
+  }
+
+  return (
+    <Overlay onClick={onCerrar}>
+      <div onClick={e=>e.stopPropagation()} style={estiloModal}>
+        {fase==="form" && <>
+          <h3 style={estiloTituloModal}>{esEdicion?"Editar evento":"Nuevo evento"}</h3>
+          <Campo label="Título"><input autoFocus value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Nombre del evento" style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
+          <Campo label="Fecha"><input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
+          <Campo label="Horario"><div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <input type="time" value={hIni} onChange={e=>setHIni(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
+            <span style={{color:"#9CA3AF",flexShrink:0}}>→</span>
+            <input type="time" value={hFin} onChange={e=>setHFin(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
+          </div></Campo>
+          <Campo label="Descripción"><input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Opcional" style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
+          {error&&<p style={{fontSize:13,color:"#EF4444",margin:"0 0 12px"}}>{error}</p>}
+          <div style={{display:"flex",gap:10}}><button onClick={onCerrar} style={{...estiloBotonSecundario,flex:1}}>Cancelar</button><button onClick={guardar} disabled={guardando} style={{...estiloBotonPrimario,flex:2,opacity:guardando?0.7:1}}>{guardando?"Guardando…":esEdicion?"Guardar cambios":"Crear evento"}</button></div>
+        </>}
+        {fase==="conflicto" && <PanelConflicto conflictos={conflictos} onSustituir={()=>setFase("confirmar")} onVolver={()=>setFase("form")} />}
+        {fase==="confirmar" && <PanelConfirmar conflictos={conflictos} guardando={guardando} onConfirmar={()=>guardarDefinitivo(conflictos)} onVolver={()=>setFase("conflicto")} />}
+      </div>
+    </Overlay>
+  );
 }
 
-function ModalRutina({ slotInicial, rutinaEditar, onCerrar, onGuardado, apiFetch }: { slotInicial:Slot|null; rutinaEditar?:Rutina|null; onCerrar:()=>void; onGuardado:()=>void; apiFetch:(url:string,options?:RequestInit)=>Promise<Response>; }) {
+function ModalRutina({ slotInicial, rutinaEditar, onCerrar, onGuardado, apiFetch, tareas:_t, rutinas, eventos:_e }: { slotInicial:Slot|null; rutinaEditar?:Rutina|null; onCerrar:()=>void; onGuardado:()=>void; apiFetch:(url:string,options?:RequestInit)=>Promise<Response>; tareas:Tarea[]; rutinas:Rutina[]; eventos:Evento[]; }) {
   const esEdicion = !!rutinaEditar;
   const [nombre,setNombre]=useState(rutinaEditar?.nombre||"");
   const [dias,setDias]=useState<number[]>(rutinaEditar?[rutinaEditar.diaSemana]:[slotInicial?diaIdx(slotInicial.fecha):0]);
   const [hIni,setHIni]=useState(rutinaEditar?.horaInicio||slotInicial?.hora||"");
   const [hFin,setHFin]=useState(rutinaEditar?.horaFin||slotInicial?.horaFin||"");
   const [color,setColor]=useState(rutinaEditar?.color||COLORES_RUTINA[0]);
-  const [guardando,setG]=useState(false); const [error,setError]=useState("");
+  const [guardando,setG]=useState(false);
+  const [error,setError]=useState("");
+  const [conflictos,setConflictos]=useState<Conflicto[]>([]);
+  const [fase,setFase]=useState<"form"|"conflicto"|"confirmar">("form");
   function toggleDia(i:number){if(esEdicion)return;setDias(prev=>prev.includes(i)?prev.filter(d=>d!==i):[...prev,i]);}
+
+  function detectar(): Conflicto[] {
+    if (!hIni || !hFin) return [];
+    const cs: Conflicto[] = [];
+    dias.forEach(dia => {
+      rutinas.forEach(r => {
+        if (r.id === rutinaEditar?.id || r.diaSemana !== dia) return;
+        if (solapan(hIni, hFin, r.horaInicio, r.horaFin))
+          cs.push({ tipo:"rutina", id:r.id, titulo:r.nombre });
+      });
+    });
+    return cs;
+  }
+
   async function guardar() {
-    if(!nombre.trim()){setError("El nombre es obligatorio.");return;} if(!esEdicion&&dias.length===0){setError("Selecciona al menos un día.");return;} if(!hIni||!hFin){setError("Las horas son obligatorias.");return;}
-    setG(true); try{
-      if(esEdicion){
-        await apiFetch(`${BACKEND}/api/rutinas/${rutinaEditar!.id}`,{method:"PUT",body:JSON.stringify({nombre:nombre.trim(),horaInicio:hIni,horaFin:hFin,color})});
+    if (!nombre.trim()) { setError("El nombre es obligatorio."); return; }
+    if (!esEdicion && dias.length===0) { setError("Selecciona al menos un día."); return; }
+    if (!hIni || !hFin) { setError("Las horas son obligatorias."); return; }
+    const cs = detectar();
+    if (cs.length > 0) { setConflictos(cs); setFase("conflicto"); return; }
+    await guardarDefinitivo([]);
+  }
+
+  async function guardarDefinitivo(eliminar: Conflicto[]) {
+    setG(true);
+    try {
+      await Promise.all(eliminar.map(c => apiFetch(`${BACKEND}/api/rutinas/${c.id}`, { method:"DELETE" })));
+      if (esEdicion) {
+        await apiFetch(`${BACKEND}/api/rutinas/${rutinaEditar!.id}`, { method:"PUT", body:JSON.stringify({ nombre:nombre.trim(), horaInicio:hIni, horaFin:hFin, color }) });
       } else {
-        await Promise.all(dias.map(dia=>apiFetch(`${BACKEND}/api/rutinas`,{method:"POST",body:JSON.stringify({nombre:nombre.trim(),diaSemana:dia,horaInicio:hIni,horaFin:hFin,color})})));
+        await Promise.all(dias.map(dia => apiFetch(`${BACKEND}/api/rutinas`, { method:"POST", body:JSON.stringify({ nombre:nombre.trim(), diaSemana:dia, horaInicio:hIni, horaFin:hFin, color }) })));
       }
       onGuardado();
-    }catch{setError("Error de conexión.");}finally{setG(false);}
+    } catch { setError("Error de conexión."); setFase("form"); } finally { setG(false); }
   }
-  return (<Overlay onClick={onCerrar}><div onClick={e=>e.stopPropagation()} style={{...estiloModal,maxWidth:480}}>
-    <h3 style={estiloTituloModal}>{esEdicion?"Editar rutina":"Nueva rutina"}</h3>
-    <Campo label="Nombre"><input autoFocus value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Ej: Clase de matemáticas" style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
-    {!esEdicion&&<Campo label="Días de la semana"><div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-      {DIAS_LABELS.map((d,i)=><button key={i} onClick={()=>toggleDia(i)} style={{padding:"5px 10px",borderRadius:6,border:"1.5px solid",cursor:"pointer",fontSize:12,fontWeight:500,borderColor:dias.includes(i)?"#4F46E5":"#E5E7EB",background:dias.includes(i)?"#EEF2FF":"#fff",color:dias.includes(i)?"#4F46E5":"#6B7280"}}>{d}</button>)}
-    </div>
-    {dias.length>1&&<p style={{fontSize:11,color:"#6B7280",margin:"6px 0 0"}}>Se crearán {dias.length} rutinas, una por día.</p>}
-    </Campo>}
-    <Campo label="Horario"><div style={{display:"flex",gap:8,alignItems:"center"}}>
-      <input type="time" value={hIni} onChange={e=>setHIni(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
-      <span style={{color:"#9CA3AF",flexShrink:0}}>→</span>
-      <input type="time" value={hFin} onChange={e=>setHFin(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
-    </div></Campo>
-    <Campo label="Color"><div style={{display:"flex",gap:10,alignItems:"center"}}>
-      {COLORES_RUTINA.map(c=><button key={c} onClick={()=>setColor(c)} style={{width:color===c?32:26,height:color===c?32:26,borderRadius:"50%",background:c,border:"none",cursor:"pointer",boxShadow:color===c?`0 0 0 2px #fff, 0 0 0 4px ${c}`:"none",transition:"all 0.15s",flexShrink:0}}/>)}
-    </div></Campo>
-    {error&&<p style={{fontSize:13,color:"#EF4444",margin:"0 0 12px"}}>{error}</p>}
-    <div style={{display:"flex",gap:10}}><button onClick={onCerrar} style={{...estiloBotonSecundario,flex:1}}>Cancelar</button><button onClick={guardar} disabled={guardando} style={{...estiloBotonPrimario,flex:2,background:color,opacity:guardando?0.7:1}}>{guardando?"Guardando…":esEdicion?"Guardar cambios":dias.length>1?`Crear ${dias.length} rutinas`:"Crear rutina"}</button></div>
-  </div></Overlay>);
+
+  return (
+    <Overlay onClick={onCerrar}>
+      <div onClick={e=>e.stopPropagation()} style={{...estiloModal,maxWidth:480}}>
+        {fase==="form" && <>
+          <h3 style={estiloTituloModal}>{esEdicion?"Editar rutina":"Nueva rutina"}</h3>
+          <Campo label="Nombre"><input autoFocus value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Ej: Clase de matemáticas" style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
+          {!esEdicion&&<Campo label="Días de la semana"><div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {DIAS_LABELS.map((d,i)=><button key={i} onClick={()=>toggleDia(i)} style={{padding:"5px 10px",borderRadius:6,border:"1.5px solid",cursor:"pointer",fontSize:12,fontWeight:500,borderColor:dias.includes(i)?"#4F46E5":"#E5E7EB",background:dias.includes(i)?"#EEF2FF":"#fff",color:dias.includes(i)?"#4F46E5":"#6B7280"}}>{d}</button>)}
+          </div>
+          {dias.length>1&&<p style={{fontSize:11,color:"#6B7280",margin:"6px 0 0"}}>Se crearán {dias.length} rutinas, una por día.</p>}
+          </Campo>}
+          <Campo label="Horario"><div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <input type="time" value={hIni} onChange={e=>setHIni(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
+            <span style={{color:"#9CA3AF",flexShrink:0}}>→</span>
+            <input type="time" value={hFin} onChange={e=>setHFin(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
+          </div></Campo>
+          <Campo label="Color"><div style={{display:"flex",gap:10,alignItems:"center"}}>
+            {COLORES_RUTINA.map(c=><button key={c} onClick={()=>setColor(c)} style={{width:color===c?32:26,height:color===c?32:26,borderRadius:"50%",background:c,border:"none",cursor:"pointer",boxShadow:color===c?`0 0 0 2px #fff, 0 0 0 4px ${c}`:"none",transition:"all 0.15s",flexShrink:0}}/>)}
+          </div></Campo>
+          {error&&<p style={{fontSize:13,color:"#EF4444",margin:"0 0 12px"}}>{error}</p>}
+          <div style={{display:"flex",gap:10}}><button onClick={onCerrar} style={{...estiloBotonSecundario,flex:1}}>Cancelar</button><button onClick={guardar} disabled={guardando} style={{...estiloBotonPrimario,flex:2,background:color,opacity:guardando?0.7:1}}>{guardando?"Guardando…":esEdicion?"Guardar cambios":dias.length>1?`Crear ${dias.length} rutinas`:"Crear rutina"}</button></div>
+        </>}
+        {fase==="conflicto" && <PanelConflicto conflictos={conflictos} onSustituir={()=>setFase("confirmar")} onVolver={()=>setFase("form")} />}
+        {fase==="confirmar" && <PanelConfirmar conflictos={conflictos} guardando={guardando} onConfirmar={()=>guardarDefinitivo(conflictos)} onVolver={()=>setFase("conflicto")} />}
+      </div>
+    </Overlay>
+  );
 }
 
 const PCONFIG={alta:{label:"Alta",color:"#EF4444",bg:"#FEF2F2"},media:{label:"Media",color:"#D97706",bg:"#FFFBEB"},baja:{label:"Baja",color:"#059669",bg:"#F0FDF4"}};
 
-function ModalTareaSimple({ slotInicial, tareaEditar, onCerrar, onGuardado, apiFetch }: { slotInicial:Slot|null; tareaEditar?:Tarea|null; onCerrar:()=>void; onGuardado:()=>void; apiFetch:(url:string,options?:RequestInit)=>Promise<Response>; }) {
+function ModalTareaSimple({ slotInicial, tareaEditar, onCerrar, onGuardado, apiFetch, tareas, rutinas:_r, eventos }: { slotInicial:Slot|null; tareaEditar?:Tarea|null; onCerrar:()=>void; onGuardado:()=>void; apiFetch:(url:string,options?:RequestInit)=>Promise<Response>; tareas:Tarea[]; rutinas:Rutina[]; eventos:Evento[]; }) {
   const esEdicion = !!tareaEditar;
   const tareaP = tareaEditar ? parseTarea(tareaEditar) : null;
   const [titulo,setTitulo]=useState(tareaEditar?.titulo||"");
@@ -630,35 +819,131 @@ function ModalTareaSimple({ slotInicial, tareaEditar, onCerrar, onGuardado, apiF
   const [hIni,setHIni]=useState(tareaP?.horaInicio||slotInicial?.hora||"");
   const [hFin,setHFin]=useState(tareaP?.horaFin||slotInicial?.horaFin||"");
   const [prior,setPrior]=useState<"baja"|"media"|"alta">(tareaEditar?.prioridad||"media");
-  const [guardando,setG]=useState(false); const [error,setError]=useState("");
-  async function guardar() {
-    if(!titulo.trim()){setError("El título es obligatorio.");return;} if(hIni&&!hFin){setError("Añade una hora de fin.");return;}
-    let fv=""; if(fecha&&hIni&&hFin) fv=`${fecha}T${hIni}:00|${hFin}`; else if(fecha&&hIni) fv=`${fecha}T${hIni}:00`; else if(fecha) fv=`${fecha}T00:00:00`;
-    const body=JSON.stringify({titulo:titulo.trim(),prioridad:prior,fecha_vencimiento:fv});
-    setG(true); try{
-      const res = esEdicion
-        ? await apiFetch(`${BACKEND}/api/tareas/${tareaEditar!.id}`,{method:"PUT",body})
-        : await apiFetch(`${BACKEND}/api/tareas`,{method:"POST",body});
-      if(!res.ok){setError("Error al guardar.");return;}onGuardado();
-    }catch{setError("Error de conexión.");}finally{setG(false);}
+  const [guardando,setG]=useState(false);
+  const [error,setError]=useState("");
+  const [conflictos,setConflictos]=useState<Conflicto[]>([]);
+  const [fase,setFase]=useState<"form"|"conflicto"|"confirmar">("form");
+
+  function detectar(): Conflicto[] {
+    if (!hIni || !hFin) return [];
+    const cs: Conflicto[] = [];
+    tareas.forEach(t => {
+      if (t.id === tareaEditar?.id) return;
+      const p = parseTarea(t); if (!p?.horaInicio || !p?.horaFin) return;
+      if (t.fecha_vencimiento!.split("|")[0].split("T")[0] === fecha && solapan(hIni, hFin, p.horaInicio, p.horaFin))
+        cs.push({ tipo:"tarea", id:t.id, titulo:t.titulo });
+    });
+    eventos.forEach(e => {
+      if (!e.horaInicio || !e.horaFin) return;
+      if (e.fecha.slice(0,10) === fecha && solapan(hIni, hFin, e.horaInicio, e.horaFin))
+        cs.push({ tipo:"evento", id:e.id, titulo:e.titulo });
+    });
+    return cs;
   }
-  return (<Overlay onClick={onCerrar}><div onClick={e=>e.stopPropagation()} style={estiloModal}>
-    <h3 style={estiloTituloModal}>{esEdicion?"Editar tarea":"Nueva tarea"}</h3>
-    <Campo label="Título"><input autoFocus value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="¿Qué necesitas hacer?" style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
-    <Campo label="Fecha límite"><input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
-    <Campo label="Horario"><div style={{display:"flex",gap:8,alignItems:"center"}}>
-      <input type="time" value={hIni} onChange={e=>setHIni(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
-      <span style={{color:"#9CA3AF",flexShrink:0}}>→</span>
-      <input type="time" value={hFin} onChange={e=>setHFin(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
+
+  async function guardar() {
+    if (!titulo.trim()) { setError("El título es obligatorio."); return; }
+    if (hIni && !hFin) { setError("Añade una hora de fin."); return; }
+    const cs = detectar();
+    if (cs.length > 0) { setConflictos(cs); setFase("conflicto"); return; }
+    await guardarDefinitivo([]);
+  }
+
+  async function guardarDefinitivo(eliminar: Conflicto[]) {
+    setG(true);
+    try {
+      await Promise.all(eliminar.map(c => apiFetch(`${BACKEND}/api/${c.tipo==="evento"?"eventos":"tareas"}/${c.id}`, { method:"DELETE" })));
+      let fv=""; if(fecha&&hIni&&hFin) fv=`${fecha}T${hIni}:00|${hFin}`; else if(fecha&&hIni) fv=`${fecha}T${hIni}:00`; else if(fecha) fv=`${fecha}T00:00:00`;
+      const body = JSON.stringify({ titulo:titulo.trim(), prioridad:prior, fecha_vencimiento:fv });
+      const res = esEdicion
+        ? await apiFetch(`${BACKEND}/api/tareas/${tareaEditar!.id}`, { method:"PUT", body })
+        : await apiFetch(`${BACKEND}/api/tareas`, { method:"POST", body });
+      if (!res.ok) { setError("Error al guardar."); setFase("form"); return; }
+      onGuardado();
+    } catch { setError("Error de conexión."); setFase("form"); } finally { setG(false); }
+  }
+
+  return (
+    <Overlay onClick={onCerrar}>
+      <div onClick={e=>e.stopPropagation()} style={estiloModal}>
+        {fase==="form" && <>
+          <h3 style={estiloTituloModal}>{esEdicion?"Editar tarea":"Nueva tarea"}</h3>
+          <Campo label="Título"><input autoFocus value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="¿Qué necesitas hacer?" style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
+          <Campo label="Fecha límite"><input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} style={estiloInput} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/></Campo>
+          <Campo label="Horario"><div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <input type="time" value={hIni} onChange={e=>setHIni(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
+            <span style={{color:"#9CA3AF",flexShrink:0}}>→</span>
+            <input type="time" value={hFin} onChange={e=>setHFin(e.target.value)} style={{...estiloInput,flex:1}} onFocus={e=>(e.currentTarget.style.borderColor="#6366F1")} onBlur={e=>(e.currentTarget.style.borderColor="#E5E7EB")}/>
+          </div>
+          {hIni&&!hFin&&<p style={{fontSize:11,color:"#D97706",margin:"5px 0 0"}}>Añade hora de fin para activar la detección automática</p>}
+          </Campo>
+          <Campo label="Prioridad"><div style={{display:"flex",gap:6}}>
+            {(["baja","media","alta"] as const).map(p=><button key={p} onClick={()=>setPrior(p)} style={{flex:1,padding:"8px 0",border:"1.5px solid",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600,borderColor:prior===p?PCONFIG[p].color:"#E5E7EB",background:prior===p?PCONFIG[p].bg:"#fff",color:prior===p?PCONFIG[p].color:"#9CA3AF"}}>{PCONFIG[p].label}</button>)}
+          </div></Campo>
+          {error&&<p style={{fontSize:13,color:"#EF4444",margin:"0 0 12px"}}>{error}</p>}
+          <div style={{display:"flex",gap:10}}><button onClick={onCerrar} style={{...estiloBotonSecundario,flex:1}}>Cancelar</button><button onClick={guardar} disabled={guardando} style={{...estiloBotonPrimario,flex:2,opacity:guardando?0.7:1}}>{guardando?"Guardando…":esEdicion?"Guardar cambios":"Crear tarea"}</button></div>
+        </>}
+        {fase==="conflicto" && <PanelConflicto conflictos={conflictos} onSustituir={()=>setFase("confirmar")} onVolver={()=>setFase("form")} />}
+        {fase==="confirmar" && <PanelConfirmar conflictos={conflictos} guardando={guardando} onConfirmar={()=>guardarDefinitivo(conflictos)} onVolver={()=>setFase("conflicto")} />}
+      </div>
+    </Overlay>
+  );
+}
+
+const TIPO_LABEL: Record<string,string> = { rutina:"Rutina", tarea:"Tarea", evento:"Evento" };
+
+function PanelConflicto({ conflictos, onSustituir, onVolver }: { conflictos:Conflicto[]; onSustituir:()=>void; onVolver:()=>void; }) {
+  return <>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+      <div style={{width:40,height:40,borderRadius:"50%",background:"#FEF3C7",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.5" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div>
+        <h3 style={{fontSize:16,fontWeight:700,color:"#1A1A1A",margin:0}}>Conflicto de horario</h3>
+        <p style={{fontSize:13,color:"#6B7280",margin:"2px 0 0"}}>Ya hay {conflictos.length===1?"algo":"cosas"} programado en ese horario</p>
+      </div>
     </div>
-    {hIni&&!hFin&&<p style={{fontSize:11,color:"#D97706",margin:"5px 0 0"}}>Añade hora de fin para activar la detección automática</p>}
-    </Campo>
-    <Campo label="Prioridad"><div style={{display:"flex",gap:6}}>
-      {(["baja","media","alta"] as const).map(p=><button key={p} onClick={()=>setPrior(p)} style={{flex:1,padding:"8px 0",border:"1.5px solid",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600,borderColor:prior===p?PCONFIG[p].color:"#E5E7EB",background:prior===p?PCONFIG[p].bg:"#fff",color:prior===p?PCONFIG[p].color:"#9CA3AF"}}>{PCONFIG[p].label}</button>)}
-    </div></Campo>
-    {error&&<p style={{fontSize:13,color:"#EF4444",margin:"0 0 12px"}}>{error}</p>}
-    <div style={{display:"flex",gap:10}}><button onClick={onCerrar} style={{...estiloBotonSecundario,flex:1}}>Cancelar</button><button onClick={guardar} disabled={guardando} style={{...estiloBotonPrimario,flex:2,opacity:guardando?0.7:1}}>{guardando?"Guardando…":esEdicion?"Guardar cambios":"Crear tarea"}</button></div>
-  </div></Overlay>);
+    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:20}}>
+      {conflictos.map(c=>(
+        <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"#FFF7ED",border:"1px solid #FED7AA"}}>
+          <span style={{fontSize:11,fontWeight:700,color:"#EA580C",background:"#FFEDD5",padding:"2px 8px",borderRadius:99,flexShrink:0}}>{TIPO_LABEL[c.tipo]}</span>
+          <span style={{fontSize:14,fontWeight:500,color:"#1A1A1A"}}>{c.titulo}</span>
+        </div>
+      ))}
+    </div>
+    <p style={{fontSize:13,color:"#6B7280",margin:"0 0 16px"}}>¿Quieres sustituirlo?</p>
+    <div style={{display:"flex",gap:10}}>
+      <button onClick={onVolver} style={{...estiloBotonSecundario,flex:1}}>Volver</button>
+      <button onClick={onSustituir} style={{...estiloBotonPrimario,flex:2,background:"#D97706"}}>Sustituir</button>
+    </div>
+  </>;
+}
+
+function PanelConfirmar({ conflictos, guardando, onConfirmar, onVolver }: { conflictos:Conflicto[]; guardando:boolean; onConfirmar:()=>void; onVolver:()=>void; }) {
+  return <>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+      <div style={{width:40,height:40,borderRadius:"50%",background:"#FEE2E2",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </div>
+      <div>
+        <h3 style={{fontSize:16,fontWeight:700,color:"#1A1A1A",margin:0}}>¿Estás seguro?</h3>
+        <p style={{fontSize:13,color:"#6B7280",margin:"2px 0 0"}}>Esta acción no se puede deshacer</p>
+      </div>
+    </div>
+    <p style={{fontSize:13,color:"#374151",margin:"0 0 10px"}}>Se eliminarán los siguientes elementos:</p>
+    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:20}}>
+      {conflictos.map(c=>(
+        <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"#FEF2F2",border:"1px solid #FECACA"}}>
+          <span style={{fontSize:11,fontWeight:700,color:"#EF4444",background:"#FEE2E2",padding:"2px 8px",borderRadius:99,flexShrink:0}}>{TIPO_LABEL[c.tipo]}</span>
+          <span style={{fontSize:14,fontWeight:500,color:"#1A1A1A"}}>{c.titulo}</span>
+        </div>
+      ))}
+    </div>
+    <div style={{display:"flex",gap:10}}>
+      <button onClick={onVolver} disabled={guardando} style={{...estiloBotonSecundario,flex:1}}>Cancelar</button>
+      <button onClick={onConfirmar} disabled={guardando} style={{...estiloBotonPrimario,flex:2,background:"#EF4444",opacity:guardando?0.7:1}}>{guardando?"Eliminando…":"Sí, sustituir"}</button>
+    </div>
+  </>;
 }
 
 function Overlay({children,onClick}:{children:React.ReactNode;onClick:()=>void}){return<div onClick={onClick} style={{position:"fixed",inset:0,zIndex:50,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>{children}</div>;}

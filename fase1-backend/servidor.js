@@ -11,10 +11,11 @@ app.use(express.json())
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'ChangeME API running' })
 })
-app.use(clerkMiddleware()) // ← add this, processes Clerk tokens on every request
+app.use(clerkMiddleware())
 
 
-// TAREAS
+// ── TAREAS ────────────────────────────────────────────────────────────────────
+
 app.get('/api/tareas', requireAuth, async (req, res) => {
   console.log('userId:', req.userId);
   try {
@@ -32,7 +33,7 @@ app.get('/api/tareas', requireAuth, async (req, res) => {
 app.get('/api/tareas/:id', requireAuth, async (req, res) => {
   try {
     const tarea = await prisma.tarea.findFirst({
-      where: { id: req.params.id, userId: req.userId }  // ← can't access other users' tasks
+      where: { id: req.params.id, userId: req.userId }
     })
     if (!tarea) return res.status(404).json({ error: 'Tarea no encontrada' })
     res.json(tarea)
@@ -45,14 +46,13 @@ app.post('/api/tareas', requireAuth, async (req, res) => {
   try {
     const { titulo, descripcion, prioridad, fecha_vencimiento } = req.body
     if (!titulo) return res.status(400).json({ error: 'El título es requerido' })
-
     const tarea = await prisma.tarea.create({
       data: {
         titulo,
         descripcion: descripcion || null,
         prioridad: prioridad || 'media',
         fecha_vencimiento: fecha_vencimiento || null,
-        userId: req.userId  // ← real Clerk user ID
+        userId: req.userId
       }
     })
     res.status(201).json(tarea)
@@ -84,7 +84,7 @@ app.put('/api/tareas/:id', requireAuth, async (req, res) => {
 app.delete('/api/tareas/:id', requireAuth, async (req, res) => {
   try {
     const tarea = await prisma.tarea.delete({
-      where: { id: req.params.id, userId: req.userId }  // ← security check
+      where: { id: req.params.id, userId: req.userId }
     })
     res.json(tarea)
   } catch (error) {
@@ -93,7 +93,9 @@ app.delete('/api/tareas/:id', requireAuth, async (req, res) => {
   }
 })
 
-// RUTINAS
+
+// ── RUTINAS ───────────────────────────────────────────────────────────────────
+
 app.get('/api/rutinas', requireAuth, async (req, res) => {
   try {
     const rutinas = await prisma.rutina.findMany({
@@ -106,7 +108,7 @@ app.get('/api/rutinas', requireAuth, async (req, res) => {
   }
 })
 
-// EXCEPCIONES de rutina
+// IMPORTANTE: ruta literal antes que /:id
 app.get('/api/rutinas/excepciones', requireAuth, async (req, res) => {
   try {
     const excepciones = await prisma.rutinaExcepcion.findMany({
@@ -153,7 +155,18 @@ app.put('/api/rutinas/:id', requireAuth, async (req, res) => {
   }
 })
 
-
+app.delete('/api/rutinas/:id', requireAuth, async (req, res) => {
+  try {
+    await prisma.rutinaExcepcion.deleteMany({ where: { rutinaId: req.params.id } })
+    const rutina = await prisma.rutina.delete({
+      where: { id: req.params.id, userId: req.userId }
+    })
+    res.json(rutina)
+  } catch (error) {
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Rutina no encontrada' })
+    res.status(500).json({ error: 'Error al eliminar rutina' })
+  }
+})
 
 app.post('/api/rutinas/:id/excepciones', requireAuth, async (req, res) => {
   try {
@@ -168,7 +181,9 @@ app.post('/api/rutinas/:id/excepciones', requireAuth, async (req, res) => {
   }
 })
 
-// OBJETIVOS
+
+// ── OBJETIVOS ─────────────────────────────────────────────────────────────────
+
 app.get('/api/objetivos', requireAuth, async (req, res) => {
   try {
     const objetivos = await prisma.objetivo.findMany({
@@ -223,23 +238,21 @@ app.put('/api/objetivos/:id', requireAuth, async (req, res) => {
   }
 })
 
-app.delete('/api/rutinas/:id', requireAuth, async (req, res) => {
+app.delete('/api/objetivos/:id', requireAuth, async (req, res) => {
   try {
-    // Primero eliminar las excepciones de esa rutina
-    await prisma.rutinaExcepcion.deleteMany({
-      where: { rutinaId: req.params.id }
-    })
-    const rutina = await prisma.rutina.delete({
+    const objetivo = await prisma.objetivo.delete({
       where: { id: req.params.id, userId: req.userId }
     })
-    res.json(rutina)
+    res.json(objetivo)
   } catch (error) {
-    if (error.code === 'P2025') return res.status(404).json({ error: 'Rutina no encontrada' })
-    res.status(500).json({ error: 'Error al eliminar rutina' })
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Objetivo no encontrado' })
+    res.status(500).json({ error: 'Error al eliminar objetivo' })
   }
 })
 
-// EVENTOS
+
+// ── EVENTOS ───────────────────────────────────────────────────────────────────
+
 app.get('/api/eventos', requireAuth, async (req, res) => {
   try {
     const eventos = await prisma.evento.findMany({
@@ -272,6 +285,26 @@ app.post('/api/eventos', requireAuth, async (req, res) => {
   }
 })
 
+app.put('/api/eventos/:id', requireAuth, async (req, res) => {
+  try {
+    const { titulo, descripcion, fecha, horaInicio, horaFin } = req.body
+    const evento = await prisma.evento.update({
+      where: { id: req.params.id, userId: req.userId },
+      data: {
+        ...(titulo !== undefined && { titulo }),
+        ...(descripcion !== undefined && { descripcion }),
+        ...(fecha !== undefined && { fecha }),
+        ...(horaInicio !== undefined && { horaInicio }),
+        ...(horaFin !== undefined && { horaFin })
+      }
+    })
+    res.json(evento)
+  } catch (error) {
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Evento no encontrado' })
+    res.status(500).json({ error: 'Error al actualizar evento' })
+  }
+})
+
 app.delete('/api/eventos/:id', requireAuth, async (req, res) => {
   try {
     const evento = await prisma.evento.delete({
@@ -284,8 +317,10 @@ app.delete('/api/eventos/:id', requireAuth, async (req, res) => {
   }
 })
 
-// INICIAR SERVIDOR
+
+// ── SERVIDOR ──────────────────────────────────────────────────────────────────
+
 const PORT = 3000
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor en http://localhost:${PORT}`)
+  console.log(`Servidor en http://localhost:${PORT}`)
 })
