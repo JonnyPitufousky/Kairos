@@ -8,6 +8,7 @@ import {
 } from "date-fns";
 import { es } from "date-fns/locale";
 
+
 const BACKEND   = "http://localhost:3000";
 const HORA_ALTO = 56;
 const HORAS     = Array.from({ length: 24 }, (_, i) => i);
@@ -80,6 +81,19 @@ export default function CalendarioPage() {
 
   useEffect(() => { cargarDatos(); }, []);
   useEffect(() => { if (scrollRef.current && (vista === "semana" || vista === "dia")) scrollRef.current.scrollTop = 7 * HORA_ALTO; }, [vista]);
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      // No navegar si hay un modal abierto o el foco está en un input
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (modalEvento || modalRutina || modalTarea || editarEvento || editarRutina || editarTarea || menuBloque || speedDial) return;
+      if (e.key === "ArrowLeft")  { e.preventDefault(); navAtras(); }
+      if (e.key === "ArrowRight") { e.preventDefault(); navAdelante(); }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [vista, fechaRef, modalEvento, modalRutina, modalTarea, editarEvento, editarRutina, editarTarea, menuBloque, speedDial]);
+
 
   function navAtras()    { setFechaRef(d => vista==="dia" ? addDays(d,-1) : vista==="semana" ? addWeeks(d,-1) : vista==="mes" ? addMonths(d,-1) : new Date(getYear(d)-1,0,1)); }
   function navAdelante() { setFechaRef(d => vista==="dia" ? addDays(d,1)  : vista==="semana" ? addWeeks(d,1)  : vista==="mes" ? addMonths(d,1)  : new Date(getYear(d)+1,0,1)); }
@@ -536,7 +550,7 @@ function BloqueHorario({ id, titulo, horaInicio, horaFin, color, tipo, completad
   const top    = (mins0(horaInicio)/60)*HORA_ALTO;
   const height = Math.max(((mins0(horaFin)-mins0(horaInicio))/60)*HORA_ALTO, 18);
   return (
-    <div onClick={e=>{e.stopPropagation();onClickBloque(tipo,id,titulo,fecha);}} style={{position:"absolute",left:2,right:2,top,height,background:`${color}1A`,borderLeft:`3px solid ${color}`,borderRadius:"0 5px 5px 0",padding:"2px 5px",overflow:"hidden",cursor:"pointer",zIndex:1,transition:"filter 0.15s"}}
+    <div onClick={e=>{e.stopPropagation();onClickBloque(tipo,id,titulo,fecha);}} style={{position:"absolute",left:0,right:0,top,height,background:`${color}1A`,borderLeft:`3px solid ${color}`,borderRadius:"0 5px 5px 0",padding:"2px 5px",overflow:"hidden",cursor:"pointer",zIndex:1,transition:"filter 0.15s"}}
       onMouseEnter={e=>(e.currentTarget.style.filter="brightness(0.93)")}
       onMouseLeave={e=>(e.currentTarget.style.filter="none")}
     >
@@ -641,7 +655,7 @@ function MenuBloque({ titulo, tipo, fecha, onEditar, onEliminarDia, onEliminarSi
               >
                 <span style={{ display: "block", fontWeight: 600 }}>Eliminar siempre</span>
                 <span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>
-                  Se borrará de todos los {nombreDia}s
+                  Se borrará de todos los {nombreDia.endsWith('s') ? nombreDia : nombreDia + 's'}
                 </span>
               </button>
               <button
@@ -691,6 +705,7 @@ function ModalEvento({ slotInicial, eventoEditar, onCerrar, onGuardado, apiFetch
   async function guardar() {
     if (!titulo.trim()) { setError("El título es obligatorio."); return; }
     if (hIni && !hFin) { setError("Añade una hora de fin."); return; }
+    if (hIni && hFin && hFin <= hIni) { setError("La hora de fin debe ser posterior a la de inicio."); return; }
     const cs = detectar();
     if (cs.length > 0) { setConflictos(cs); setFase("conflicto"); return; }
     await guardarDefinitivo([]);
@@ -762,6 +777,7 @@ function ModalRutina({ slotInicial, rutinaEditar, onCerrar, onGuardado, apiFetch
     if (!nombre.trim()) { setError("El nombre es obligatorio."); return; }
     if (!esEdicion && dias.length===0) { setError("Selecciona al menos un día."); return; }
     if (!hIni || !hFin) { setError("Las horas son obligatorias."); return; }
+    if (hFin <= hIni) { setError("La hora de fin debe ser posterior a la de inicio."); return; }
     const cs = detectar();
     if (cs.length > 0) { setConflictos(cs); setFase("conflicto"); return; }
     await guardarDefinitivo([]);
@@ -844,6 +860,7 @@ function ModalTareaSimple({ slotInicial, tareaEditar, onCerrar, onGuardado, apiF
   async function guardar() {
     if (!titulo.trim()) { setError("El título es obligatorio."); return; }
     if (hIni && !hFin) { setError("Añade una hora de fin."); return; }
+    if (hIni && hFin && hFin <= hIni) { setError("La hora de fin debe ser posterior a la de inicio."); return; }
     const cs = detectar();
     if (cs.length > 0) { setConflictos(cs); setFase("conflicto"); return; }
     await guardarDefinitivo([]);

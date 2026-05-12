@@ -377,11 +377,12 @@ export default function Home() {
             {rutinaActual && (
               <div style={{ marginBottom: 16 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Ahora</p>
-                <div style={{ background: "#1A1A1A", borderRadius: 14, padding: "16px", border: "1px solid #374151" }}>
+                <div style={{ background: `${rutinaActual.color}12`, borderRadius: 14, padding: "16px", border: `1.5px solid ${rutinaActual.color}40` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: rutinaActual.color, display: "inline-block" }} />
+                    <span style={{ fontSize: 10, fontWeight: 700, color: rutinaActual.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>En curso</span>
                   </div>
-                  <p style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF", margin: "0 0 4px" }}>{rutinaActual.nombre}</p>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A", margin: "0 0 4px" }}>{rutinaActual.nombre}</p>
                   <p style={{ fontSize: 12, color: "#6B7280", margin: 0 }}>{rutinaActual.horaInicio} – {rutinaActual.horaFin}</p>
                 </div>
               </div>
