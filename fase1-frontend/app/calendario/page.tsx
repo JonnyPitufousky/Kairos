@@ -196,7 +196,7 @@ export default function CalendarioPage() {
 
 function VistaSemana({ fechaRef, tareas, rutinas, eventos, excepciones, scrollRef, onClickSlot, onClickDia, onClickBloque }: {
   fechaRef: Date; tareas: Tarea[]; rutinas: Rutina[]; eventos: Evento[]; excepciones: RutinaExcepcion[];
-  scrollRef: React.RefObject<HTMLDivElement>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   onClickSlot: (f: Date, h: string) => void; onClickDia: (f: Date) => void;
   onClickBloque: (tipo: "tarea"|"rutina"|"evento", id: string, titulo: string, fecha?: string) => void;
 }) {
@@ -287,7 +287,7 @@ function VistaSemana({ fechaRef, tareas, rutinas, eventos, excepciones, scrollRe
 
 function ColumnaDia({ dia, diaIdx: dIdx, tareas, rutinas, eventos, excepciones, scrollRef, onClickSlot, onClickBloque }: {
   dia: Date; diaIdx: number; tareas: Tarea[]; rutinas: Rutina[]; eventos: Evento[]; excepciones: RutinaExcepcion[];
-  scrollRef: React.RefObject<HTMLDivElement>; onClickSlot: (f: Date, h: string) => void;
+  scrollRef: React.RefObject<HTMLDivElement | null>; onClickSlot: (f: Date, h: string) => void;
   onClickBloque: (tipo: "tarea"|"rutina"|"evento", id: string, titulo: string, fecha?: string) => void;
 }) {
   const hoy        = isToday(dia);
@@ -351,7 +351,7 @@ function ColumnaDia({ dia, diaIdx: dIdx, tareas, rutinas, eventos, excepciones, 
 
 function VistaDia({ fecha, tareas, rutinas, eventos, excepciones, scrollRef, onClickSlot, onClickBloque }: {
   fecha: Date; tareas: Tarea[]; rutinas: Rutina[]; eventos: Evento[]; excepciones: RutinaExcepcion[];
-  scrollRef: React.RefObject<HTMLDivElement>; onClickSlot: (f: Date, h: string) => void;
+  scrollRef: React.RefObject<HTMLDivElement | null>; onClickSlot: (f: Date, h: string) => void;
   onClickBloque: (tipo: "tarea"|"rutina"|"evento", id: string, titulo: string, fecha?: string) => void;
 }) {
   const hoy        = isToday(fecha);

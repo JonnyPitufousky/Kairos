@@ -22,6 +22,15 @@ interface Rutina {
   color: string | null;
 }
 
+interface Evento {
+  id: string;
+  titulo: string;
+  descripcion: string | null;
+  fecha: string;
+  horaInicio: string | null;
+  horaFin: string | null;
+}
+
 const BACKEND = "http://localhost:3000";
 
 const PRIORIDAD_CONFIG = {
@@ -103,6 +112,7 @@ export default function Home() {
   const { getToken } = useAuth();
   const [tareas, setTareas]                       = useState<Tarea[]>([]);
   const [rutinas, setRutinas] = useState<Rutina[]>([]);
+  const [eventos, setEventos] = useState<Evento[]>([]);
   const [cargando, setCargando]                   = useState(true);
   const [confirmarEliminar, setConfirmarEliminar] = useState<Tarea | null>(null);
   const [editarTarea, setEditarTarea]             = useState<Tarea | null>(null);
@@ -168,13 +178,17 @@ export default function Home() {
 
   async function cargarTareas() {
     setCargando(true);
-    const [rTareas, rRutinas] = await Promise.all([
+    const [rTareas, rRutinas, rEventos] = await Promise.all([
       apiFetch(`${BACKEND}/api/tareas`),
       apiFetch(`${BACKEND}/api/rutinas`),
+      apiFetch(`${BACKEND}/api/eventos`),
     ]);
-    const [dTareas, dRutinas] = await Promise.all([rTareas.json(), rRutinas.json()]);
+    const [dTareas, dRutinas, dEventos] = await Promise.all([
+      rTareas.json(), rRutinas.json(), rEventos.json()
+    ]);
     setTareas(Array.isArray(dTareas) ? dTareas : []);
     setRutinas(Array.isArray(dRutinas) ? dRutinas : []);
+    setEventos(Array.isArray(dEventos) ? dEventos : []);
     setCargando(false);
   }
 
@@ -275,6 +289,8 @@ export default function Home() {
     // 0 = lunes, igual que en el calendario
   const diaSemanaHoy = (new Date().getDay() + 6) % 7;
   const RUTINAS_HOY  = rutinas.filter(r => r.diaSemana === diaSemanaHoy);
+  const hoyStr = new Date().toLocaleDateString("en-CA");
+  const EVENTOS_HOY = eventos.filter(e => e.fecha.slice(0, 10) === hoyStr);
   const rutinaActual = getRutinaActual(RUTINAS_HOY);
   return (
     <div style={{ background: "#FAFAF9", minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -379,11 +395,44 @@ export default function Home() {
                 <p style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Ahora</p>
                 <div style={{ background: `${rutinaActual.color}12`, borderRadius: 14, padding: "16px", border: `1.5px solid ${rutinaActual.color}40` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: rutinaActual.color, display: "inline-block" }} />
-                    <span style={{ fontSize: 10, fontWeight: 700, color: rutinaActual.color, textTransform: "uppercase", letterSpacing: "0.08em" }}>En curso</span>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: rutinaActual.color ?? undefined, display: "inline-block" }} />
+                    <span style={{ fontSize: 10, fontWeight: 700, color: rutinaActual.color ?? undefined, textTransform: "uppercase", letterSpacing: "0.08em" }}>En curso</span>
                   </div>
                   <p style={{ fontSize: 16, fontWeight: 700, color: "#1A1A1A", margin: "0 0 4px" }}>{rutinaActual.nombre}</p>
                   <p style={{ fontSize: 12, color: "#6B7280", margin: 0 }}>{rutinaActual.horaInicio} – {rutinaActual.horaFin}</p>
+                </div>
+              </div>
+            )}
+            {EVENTOS_HOY.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Eventos de hoy</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {EVENTOS_HOY.sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || "")).map(ev => {
+                    const ahora = horaActual;
+                    const esPasado = ev.horaFin ? ev.horaFin < ahora : ev.horaInicio ? ev.horaInicio < ahora : false;
+                    const esAhora  = ev.horaInicio && ev.horaFin ? ev.horaInicio <= ahora && ahora <= ev.horaFin : false;
+                    return (
+                      <div key={ev.id} style={{
+                        background: "#FFFFFF",
+                        border: "0.5px solid #E5E7EB",
+                        borderLeft: `3px solid ${esPasado ? "#E5E7EB" : "#6366F1"}`,
+                        borderRadius: "0 10px 10px 0",
+                        padding: "10px 12px",
+                        opacity: esPasado ? 0.5 : 1,
+                        transition: "all 0.2s",
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: esPasado ? "#9CA3AF" : "#1A1A1A" }}>{ev.titulo}</span>
+                          {esAhora && <span style={{ fontSize: 10, fontWeight: 700, color: "#6366F1", background: "#EEF2FF", padding: "2px 7px", borderRadius: 99 }}>Ahora</span>}
+                        </div>
+                        {(ev.horaInicio || ev.horaFin) && (
+                          <p style={{ fontSize: 11, color: "#9CA3AF", margin: "3px 0 0" }}>
+                            {ev.horaInicio && ev.horaFin ? `${ev.horaInicio} – ${ev.horaFin}` : ev.horaInicio || ev.horaFin}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -404,7 +453,7 @@ export default function Home() {
                     }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: esPasada ? "#9CA3AF" : "#1A1A1A" }}>{rutina.nombre}</span>
-                        {esActual && <span style={{ fontSize: 10, fontWeight: 700, color: rutina.color, background: `${rutina.color}15`, padding: "2px 7px", borderRadius: 99 }}>Ahora</span>}
+                        {esActual && <span style={{ fontSize: 10, fontWeight: 700, color: rutina.color ?? undefined, background: `${rutina.color}15`, padding: "2px 7px", borderRadius: 99 }}>Ahora</span>}
                       </div>
                       <p style={{ fontSize: 11, color: "#9CA3AF", margin: "3px 0 0" }}>{rutina.horaInicio} – {rutina.horaFin}</p>
                     </div>

@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useState } from "react";
@@ -11,7 +12,7 @@ const NAV_ITEMS = [
   { label: "Agenda", path: "/agenda", icon: "list" },
 ];
 
-const ICONS: Record<string, (color: string) => JSX.Element> = {
+const ICONS: Record<string, (color: string) => React.JSX.Element> = {
   sun: (c) => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
