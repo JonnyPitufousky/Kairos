@@ -6,7 +6,7 @@ const prisma = require('./db')
 const { clerkMiddleware, requireAuth } = require('./middleware/auth')
 
 const app = express()
-app.use(cors({ origin: 'http://localhost:3007' }));
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3007' }));
 app.use(express.json())
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'ChangeME API running' })
@@ -77,7 +77,10 @@ app.put('/api/tareas/:id', requireAuth, async (req, res) => {
     res.json(tarea)
   } catch (error) {
     if (error.code === 'P2025') return res.status(404).json({ error: 'Tarea no encontrada' })
-    res.status(500).json({ error: 'Error al actualizar tarea' })
+    res.status(500).json({ error: 'Error al actualconst PORT = 3000
+app.listen(PORT, () => {
+  console.log(`Servidor en http://localhost:${PORT}`)
+})izar tarea' })
   }
 })
 
@@ -158,7 +161,10 @@ app.put('/api/rutinas/:id', requireAuth, async (req, res) => {
 app.delete('/api/rutinas/:id', requireAuth, async (req, res) => {
   try {
     await prisma.rutinaExcepcion.deleteMany({ where: { rutinaId: req.params.id } })
-    const rutina = await prisma.rutina.delete({
+    const rutina = await prisma.rutina.delete({const PORT = 3000
+app.listen(PORT, () => {
+  console.log(`Servidor en http://localhost:${PORT}`)
+})
       where: { id: req.params.id, userId: req.userId }
     })
     res.json(rutina)
@@ -320,7 +326,7 @@ app.delete('/api/eventos/:id', requireAuth, async (req, res) => {
 
 // ── SERVIDOR ──────────────────────────────────────────────────────────────────
 
-const PORT = 3000
+const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
-  console.log(`Servidor en http://localhost:${PORT}`)
+  console.log(`Servidor en puerto ${PORT}`)
 })
