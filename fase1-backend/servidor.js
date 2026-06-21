@@ -75,12 +75,9 @@ app.put('/api/tareas/:id', requireAuth, async (req, res) => {
       }
     })
     res.json(tarea)
-  } catch (error) {
+} catch (error) {
     if (error.code === 'P2025') return res.status(404).json({ error: 'Tarea no encontrada' })
-    res.status(500).json({ error: 'Error al actualconst PORT = 3000
-app.listen(PORT, () => {
-  console.log(`Servidor en http://localhost:${PORT}`)
-})izar tarea' })
+    res.status(500).json({ error: 'Error al actualizar tarea' })
   }
 })
 
@@ -161,10 +158,7 @@ app.put('/api/rutinas/:id', requireAuth, async (req, res) => {
 app.delete('/api/rutinas/:id', requireAuth, async (req, res) => {
   try {
     await prisma.rutinaExcepcion.deleteMany({ where: { rutinaId: req.params.id } })
-    const rutina = await prisma.rutina.delete({const PORT = 3000
-app.listen(PORT, () => {
-  console.log(`Servidor en http://localhost:${PORT}`)
-})
+    const rutina = await prisma.rutina.delete({
       where: { id: req.params.id, userId: req.userId }
     })
     res.json(rutina)
