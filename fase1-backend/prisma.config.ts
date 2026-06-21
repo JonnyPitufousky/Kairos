@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import path from 'node:path'
-import { defineConfig } from '@prisma/config' // Ensure the @ is there if using the official package
+import { defineConfig } from 'prisma/config' // Ensure the @ is there if using the official package
 
 export default defineConfig({
   earlyAccess: true,
