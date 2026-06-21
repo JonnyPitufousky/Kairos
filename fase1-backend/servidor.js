@@ -98,8 +98,15 @@ app.delete('/api/tareas/:id', requireAuth, async (req, res) => {
 
 app.get('/api/rutinas', requireAuth, async (req, res) => {
   try {
+    const hoy = new Date().toISOString().split("T")[0]
     const rutinas = await prisma.rutina.findMany({
-      where: { userId: req.userId },
+      where: {
+        userId: req.userId,
+        OR: [
+          { fechaFin: null },
+          { fechaFin: { gte: hoy } }
+        ]
+      },
       orderBy: { diaSemana: 'asc' }
     })
     res.json(rutinas)

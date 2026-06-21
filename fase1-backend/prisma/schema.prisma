@@ -29,6 +29,8 @@ model Rutina {
   userId      String
   creadoEn    DateTime          @default(now())
   excepciones RutinaExcepcion[]
+  fechaInicio String? // yyyy-MM-dd
+  fechaFin    String? // yyyy-MM-dd
 }
 
 model RutinaExcepcion {
